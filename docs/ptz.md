@@ -79,7 +79,22 @@ Consequences worth stating plainly:
 
 * **You cannot ask where the camera is pointing.**
 * **You cannot send it to a known framing.**
-* If anything nudges it — wind, a knock, a curious agent — recovery is manual.
+
+> ### ✅ But the aim is recoverable — this page used to be too pessimistic
+>
+> It previously said recovery from a nudge is manual. **Measured: the camera drives to its
+> mechanical limits, stops dead, and stays there** — no grind, no creep, no drift — and the
+> traverse is highly repeatable: **pan 5.1 / 5.2 / 5.2 / 5.3 s, tilt 13.0 / 13.0 / 13.0 / 13.3 s.**
+> [M]
+>
+> **So the limits are a commandable reference point, and `act=3` then `act=9` is a working "go to a
+> known corner" macro.** It does not restore *your* framing, but it converts aim from
+> **irreversible** to **repeatable** — which on an outdoor camera is the difference between a
+> command and a ladder.
+>
+> ⚠️ **Timed presets remain infeasible**, now for three independent reasons: `<Timeout>` is
+> ignored, ONVIF `Stop` is unsupported, and **there is no partial move to count** because every
+> command runs to a stop. [M]
 
 ## From Home Assistant: use `onvif.ptz`
 
@@ -108,8 +123,39 @@ which `onvif.ptz` cannot express. Measured working at view change **68.12**. [M]
 
 `GET http://<camera>:8001/ptzctrl?act=<N>` returns **HTTP 200, body `OK`**, for every `N` in
 0–11. Present on both cameras, no authentication. Bare `/ptzctrl` with no parameters gives
-`400 Bad Request`. Codes 0, 1 and 3–11 produce large measured view changes, so they really do
-move it. [M]
+`400 Bad Request`. [M]
+
+### ✅ The mover/non-mover map, measured properly
+
+**Movers: `1, 3, 5, 7, 9, 10, 11`. Non-movers: `0, 2, 4, 6, 8`.** Each tested from **two opposite
+corners**. [M]
+
+**Pairs:** `act=1` ↔ `act=3` are opposite ends of **pan**; `act=7` ↔ `act=9` are opposite ends of
+**tilt**. [M]
+
+> ❌ **RETRACTED, twice, and the second retraction restored most of the first claim.**
+>
+> This page originally said *"codes 0, 1 and 3–11 produce large measured view changes"*. A later
+> sweep reported **only 5 codes move** and retracted it. **That correction was itself wrong**, and
+> the original was closer to the truth — right about `1,3,5,7,9,10,11`, wrong only about
+> `0,4,6,8`.
+>
+> 🔴 **The mechanism is specific to this hardware and worth carrying:** *every act code drives to a
+> hard mechanical limit in one command*, so **a code tested while the camera is already at that
+> limit reads as "no motion" — indistinguishable from a dead code.** The flawed sweep ran the codes
+> back-to-back, repeatedly testing each against a limit the previous code had just driven into.
+> `act=5` is the proof: **struct-change 4.6 in the back-to-back sweep, 21.4 / 35.4 / 27.9 when
+> retried from elsewhere.**
+>
+> **The fix is one line: re-park before every trial.** See
+> [method.md](method.md) — on a device where commands saturate, a back-to-back sweep silently
+> converts "at the end stop" into "does nothing".
+
+> ❌ **Killed hypothesis, recorded because it looked right:** odd-moves/even-doesn't is exactly the
+> shape of `2×direction + action` move/stop pairs, and a working vendor stop would have resurrected
+> partial positioning. **Tested: `act=1` interrupted by `act=0` at 1.0 / 2.0 / 3.5 s produced
+> 90 / 118 / 119 % of a full traverse** — a wrong-axis `act=2` control was identical. **Even codes
+> are not stops.** [M]
 
 > ⚠️ **Which `act` code means which direction is unknown, and is deliberately not guessed here.**
 >

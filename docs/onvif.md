@@ -111,8 +111,15 @@ Do not spend time on it.
 
 | Stream | Path | Measured |
 |---|---|---|
-| Main | `rtsp://<camera>:554/0/av0` | **HEVC 1920×1080**, ~12 fps, `pcm_alaw` audio |
-| Sub | `rtsp://<camera>:554/0/av1` | **HEVC 640×360**, ~12 fps, `pcm_alaw` audio |
+| Main | `rtsp://<camera>:554/0/av0` | **HEVC 1920×1080**, `pcm_alaw` audio — ⚠️ **~9.3 fps delivered**, drops whole GOPs |
+| Sub | `rtsp://<camera>:554/0/av1` | **HEVC 640×360**, `pcm_alaw` audio — ✅ **12.35 fps, zero stalls** |
+
+> ❌ **RETRACTED: "~12 fps" for both streams.** That is the *nominal* rate. Measured across three
+> 30 s wall-clock captures: the substream delivers **12.35 fps with zero stalls**, keyframes every
+> 2.00 s across 14 consecutive intervals; the mainstream delivers **9.29 / 9.26 fps**, loses about a
+> quarter of its frames, and **drops whole GOPs** (10.0 s and 6.0 s keyframe gaps). **[I]** the
+> cause is the 92–97 KB I-frame burst over WiFi — the substream's largest frame is 10.9 KB.
+> **Prefer `/0/av1`.** [M]
 
 `/0/video0` also yields the mainstream (loose path handling), but `/0/av1` does correctly select
 the substream — so RTSP paths are *not* fully ignored, unlike the ONVIF endpoint. `/1/video1`
