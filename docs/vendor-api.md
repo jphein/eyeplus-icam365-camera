@@ -106,9 +106,35 @@ bucket on this hardware** — and never conclude a port is closed from a sweep a
 > | **`tReboot`** | A reboot task exists although ONVIF `SystemReboot` is a measured no-op — a **wiring gap in the ONVIF handler**, not an absent capability. |
 > | **`twd`** | A watchdog, supporting the crash-plus-watchdog reading of the `:8001` overload incident. |
 >
-> ⚠️ **`tXxx` naming with every thread on one pid is VxWorks idiom**, and `redirectionOutput` is a
-> VxWorks shell primitive. **[I]** these may not be Linux at all — which would invalidate any
-> Linux-shaped rooting plan. **Unresolved; do not build on either reading yet.**
+> ### ❌ RETRACTED within the hour: "this looks like VxWorks"
+>
+> The `tXxx` naming and `redirectionOutput` read as VxWorks idiom, and that was written here as an
+> **[I]** with a warning that it would invalidate any Linux-shaped rooting plan. **Adjudicated
+> and reversed the same afternoon — the evidence says Linux, and the headline argument was
+> backwards:**
+>
+> * 🔑 **"All 14 threads share `pid=298`" is *Linux* semantics, not VxWorks.** Every thread of a
+>   POSIX process shares the TGID, which is what `getpid()` returns — so a multithreaded Linux app
+>   looks exactly like this. **Classic VxWorks has no PID concept at all**, only task IDs. The
+>   observation offered as proof of VxWorks is proof of the opposite.
+> * **All 14 names are ≤15 characters, the longest exactly 15** (`tONVIF_Initiate`) — precisely the
+>   `pthread_setname_np()` limit of 16 bytes including NUL. VxWorks imposes no such bound.
+> * The dump also carries `taskid=3869112` — the shape of a **`pthread_t`**, not a task index.
+> * ONVIF reports interfaces as **`wlan0`/`eth0`** (cfg80211 naming); VxWorks uses `gei0`/`fei0`.
+>   Weak on its own, being a self-report, but it points the same way.
+>
+> **The `tXxx` names are a developer's habit, not an API's requirement** — and the names say so
+> themselves: `tNetIfDeamon` is *misspelled*, and `thttp_thread` carries both a `t` prefix and a
+> `_thread` suffix. An OS convention would not be inconsistent with itself.
+>
+> ⚠️ **Still open, and stated rather than buried:** nobody has checked externally whether any
+> VxWorks camera family presents `Ginatex-HTTPServer`/`TAS-Tech`. This rests on in-repo
+> measurement plus reasoning, with no external corroboration.
+>
+> **Worth keeping as a method case.** A single striking observation (`tXxx`, one pid) produced a
+> confident cross-cutting inference that was about to redirect a physical experiment — and it
+> inverted on inspection. **The tell was that nobody had checked what the observation implied
+> under the *other* hypothesis**, only that it fit the first one.
 >
 > ### The lesson that cost four months
 >
