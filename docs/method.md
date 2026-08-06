@@ -170,6 +170,33 @@ a finding about the camera.
 Assert that the extraction found *something* before comparing it, and when a result is surprising,
 look at the raw bytes before believing your own parser.
 
+## 🚫 Clustered failures accuse the instrument, not the subject
+
+**This fired twice in one hour, on two different people, with two different tools.** [M]
+
+| | what the tool reported | what was true |
+|---|---|---|
+| Link checker A | **8 broken anchors** | 6 were the checker: it indexed `line.startswith('#')`, which silently skips **every heading nested in a blockquote** — and this repo puts its retraction headings exactly there |
+| Link checker B | **24 broken anchors** | **all 24** were the checker: it stripped the leading hyphen from a slug, but GitHub *keeps* it when it removes an emoji, so every `#-retracted-…` link looked broken |
+
+In both cases the tell was available before the report was filed: **the failures clustered.**
+Several pointed at the *same* heading; a whole class of link failed and no other class did. Real
+breakage is scattered, because it comes from unrelated edits. **A tidy pattern of failures is a
+property of the checker.**
+
+Had either been believed, the "fix" would have **broken working links to repair imaginary ones** —
+a net loss delivered with a clean report and a passing exit code.
+
+> **The habit:** when a check reports many failures at once, spend one command confirming the
+> checker can *pass* — point it at something known-good and watch it succeed. That is the
+> [armed-instrument rule](#-an-instrument-that-is-switched-off-looks-exactly-like-a-negative-result)
+> applied to your own tooling rather than to the device.
+
+**A citation is an instrument too.** The same audit carried two off-by-one line references, each
+pointing at a plausible-looking neighbouring row — the kind of error that survives review precisely
+because the wrong line still reads sensibly. Re-read a citation against the file *after* drafting,
+not while.
+
 ## See also
 
 * [security.md](security.md) — what the write-probe did to a camera
