@@ -60,7 +60,7 @@ could be pinned to the application layer rather than the network. Without that, 
 | ✅ PTZ | ONVIF `ContinuousMove` and HA's `onvif.ptz` — [but testing it destroys the aim](docs/ptz.md) |
 | ✅ Local provisioning | [No cloud account needed](docs/provisioning.md) |
 | ✅ Availability monitoring | HA binary sensor + health sensor |
-| 🔴 WiFi persistence | **A single clean power cycle wiped it** once. The cloud-bind explanation is now [a measured dead end](docs/provisioning.md#-the-wan-window-was-run-the-cloud-bind-does-not-complete) — [one clean re-test decides](docs/provisioning.md#-still-open-and-it-is-one-clean-test) whether outdoor use is blocked |
+| 🔴 WiFi persistence | **Confirmed non-durable.** A single clean power cycle loses the config, even after cloud contact. [Every camera needs one supervised app pairing before isolation](docs/provisioning.md#-answered-it-is-not-durable-confirmed) |
 | ❌ Position feedback / presets / home | Not implemented. **No way to restore a framing in software.** |
 | ❌ Motion events | [Structurally impossible over ONVIF](docs/ai-and-events.md) — no pull-point subscription |
 | ❌ AI detection / auto-tracking | Exists in hardware, [reachable only over the vendor P2P channel](docs/ai-and-events.md#where-the-features-actually-live) |

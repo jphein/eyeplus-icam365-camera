@@ -112,44 +112,50 @@ the local shortcut cannot.
 > Two general lessons: **`pkill -f` can match the process running it**, and **verify the artefact,
 > not the exit code** — which is the same discipline this whole page is built on.
 
-### ❓ Still open, and it is one clean test
+### 🔴 ANSWERED: it is not durable. Confirmed.
 
-**Does `icam365-02` survive a power cycle now?** It has had *real cloud contact* — the
-`HelloAck` — even though the login was refused. That is more than it had before.
+**One clean power cycle. The camera came back in AP mode**, reporting *"camera startup wait for
+user config"*. [M]
 
-| If it… | Then |
-|---|---|
-| **survives** | Config persists after all. The earlier loss was something else — most plausibly a multi-flip factory reset — and **these cameras are cleared for outdoor use.** |
-| **is lost again** | Non-durability is confirmed and the outdoor limitation is real. |
+That is decisive, and it closes the question three ways:
 
-The answer decides whether this page's outdoor guidance is a **warning** or a **footnote**.
+* **The benign explanation is dead.** A multi-flip factory reset cannot explain a deliberate
+  single off/on.
+* **Cloud *contact* is not enough.** `icam365-02` had exchanged `HelloAck`s with the vendor during
+  the WAN window and **still forgot.** A completed *bind* — which
+  [never happened](#-the-wan-window-was-run-the-cloud-bind-does-not-complete) — is evidently the
+  thing that matters, not reaching the server.
+* **Both branches of the flash-commit hypothesis now have evidence.** `icam365-02`: locally
+  paired, non-durable. `icam365-01`: app-paired **with cloud** in 2024, surviving power cuts
+  since.
 
-#### One flip now answers *two* questions
+### The operational conclusion
 
-A second finding makes the same reboot more valuable: **the camera never re-resolves DNS.** It is
-still firing at IP addresses cached during the WAN window, so a DNS override cannot redirect a
+> 🔴 **Every one of these cameras needs one supervised, internet-connected app pairing before it
+> can live on an isolated VLAN.**
+>
+> Local `/setwifi` **works**, and it is genuinely useful — but it yields a camera that **forgets
+> its WiFi on every power cut**. Fine on a bench. **Unusable on a pole.**
+
+The `icam365-01` half stays **[I] inferred**: nobody is going to power-cycle the production
+camera to confirm it, and a negative result would mean having broken it to find out.
+
+> ✅ **This retroactively validates the choice to put `icam365-01` outside.** Had the lab unit
+> gone up by the cars instead, the first power blip would have meant a ladder — and the fault
+> would have looked like dead hardware rather than a known limitation.
+
+#### One flip, two answers — and the second is still available
+
+A second finding makes a *future* reboot more valuable: **the camera never re-resolves DNS.** It
+is still firing at IP addresses cached during the WAN window, so a DNS override cannot redirect a
 client that is not querying. [M]
 
-A fake PPPP masterserver and a DNS override are built and can be armed beforehand — and **the
-camera must reboot to re-resolve**, which is exactly what this test does anyway. So one power
-cycle yields:
+A fake PPPP masterserver and a DNS override are built. Because the camera **must reboot to
+re-resolve**, arming them before the next power cycle would test whether a synthesised login-ack
+changes its behaviour — the impersonation question — at no extra cost.
 
-1. **Durability** — does it come back on WiFi, or in AP mode having forgotten?
-2. **Impersonation** — on boot it re-resolves, lands on the fake masterserver, and we learn
-   whether a synthesised login-ack changes its behaviour.
-
-**Arm the masterserver and the override before flipping**, or the second answer is wasted and the
-camera has to be rebooted again to get it.
-
-> ⚠️ **Run it on `icam365-02` only. Never on `icam365-01`.** The production camera's 2024
-> app-pairing history is the *only* evidence that app-paired units are durable. Power-cycling it
-> would destroy that evidence and the production camera in the same move. See the
-> [operational rules](../README.md#-operational-rules--icam365-01-is-production).
-
-**Suggestive, but not a measurement:** `icam365-01` was paired in 2024 through the phone app
-**with cloud access**, and has survived power cuts since. `icam365-02` was paired locally with no
-cloud bind and lost its config on the first one. That natural experiment points the same way as
-the hypothesis above — and it stays **inferred**, for the reason in the warning.
+**That opportunity was not taken on this flip.** Arm the masterserver and the override *before*
+the next one, or it is wasted again.
 
 ## ⚠️ A `200` does not mean it worked
 
