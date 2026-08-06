@@ -123,16 +123,16 @@ cause looks like an improvement.
 
 | | |
 |---|---|
-| ✅ Video | RTSP, no auth — **H.265 only**, 1080p main / 640×360 sub, ~12 fps + PCM A-law |
+| ✅ Video | RTSP, no auth — **H.265 only**, 1080p main / 640×360 sub + PCM A-law. ⚠️ **Use the substream**: 12.35 fps clean vs the mainstream's ~9.3 fps with dropped GOPs — [measured](#specifications) |
 | ✅ Snapshots | [`:8001/snapshot`](docs/vendor-api.md#snapshot-is-the-most-useful-thing-on-these-cameras) — 640×360 JPEG, ~70 ms, no auth. **The best thing on these cameras.** |
-| ✅ PTZ | ONVIF `ContinuousMove` and HA's `onvif.ptz` — [but testing it destroys the aim](docs/ptz.md) |
+| ✅ PTZ | ONVIF `ContinuousMove` and HA's `onvif.ptz`. No presets, but the mechanical limits are repeatable, so **a "go to a known corner" macro exists** — aim is recoverable, not irreversible |
 | ✅ Local provisioning | [No cloud account needed](docs/provisioning.md) |
 | ✅ Availability monitoring | HA binary sensor + health sensor |
 | ⚠️ WiFi persistence | **Depends entirely on how the unit was paired.** App-paired with cloud → [survives a power cycle, measured](docs/provisioning.md#-confirmed-m-an-app-paired-camera-does-survive-a-power-cycle). Locally provisioned with `userid:"0"` → [loses its config on a single clean flip](docs/provisioning.md#-answered-it-is-not-durable-confirmed), measured. **Every camera needs one supervised app pairing before isolation.** |
 | ❌ Position feedback / presets / home | Not implemented. **No way to restore a framing in software.** |
-| ❌ Motion events | [Structurally impossible over ONVIF](docs/ai-and-events.md) — no pull-point subscription |
+| ❌ Motion events | [Structurally impossible over ONVIF](docs/ai-and-events.md) — though a **`tMotDet` thread runs on the device** |
 | ❌ AI detection / auto-tracking | Exists in hardware, [reachable only over the vendor P2P channel](docs/ai-and-events.md#where-the-features-actually-live) |
-| ❌ Reboot | ONVIF `SystemReboot` is a **no-op**; only a power cycle restarts these |
+| ❌ Reboot | ONVIF `SystemReboot` is a **no-op** — but a `tReboot` thread exists, so it is a wiring gap, not a missing capability |
 | ❌ Authentication | On anything. See [security.md](docs/security.md) |
 
 ## The two cameras
@@ -326,22 +326,286 @@ sweep ran in daylight, and firmwares commonly refuse to light an IR lamp while t
 reads "day", so daylight makes that test *harder*, not easier. The hardware confirmation makes a
 post-dusk re-test worthwhile rather than academic.
 
-## Identity, such as it is
+## Specifications
 
-Every identifying field is a placeholder, which is typical of a white-label OEM that expects the
-phone app to supply identity:
+Measured on the units in hand across 2026-08-05/06. Every row is **[M] measured** or
+**[I] inferred**; a row marked **[?]** is *unknown*, not *absent* — those are in
+[§ What is still unmeasured](#what-is-still-unmeasured).
 
-| Field | Value |
+> ### 🔑 Read the whole sheet through one lens
+>
+> **On these cameras, "the hardware has it" and "you can reach it" are different columns**, and the
+> gap between them is the entire story of this repo. The
+> [hardware inspection](#hardware-confirmed-by-looking-at-it) found a speaker, IR LEDs, an IR-cut
+> filter and an SD slot in **every** unit — all of which the network reports as absent. So a `❌` below
+> almost never means *"this camera cannot"*. It means **"no open protocol exposes it."**
+>
+> The `:6670` task table settles that in the firmware's own words: `tSpeaker`, `tIcrCtrlThread`
+> (ICR = IR-Cut Removable), `sddetectTask` and `tMotDet` are all **running threads**. **[M]**
+
+### Video
+
+| | | |
+|---|---|---|
+| Codec | **H.265 / HEVC, Main profile** — on both streams | **[M]** |
+| 🔴 Reported codec | **`H264`** — wrong, on every ONVIF path, and **not correctable** (see below) | **[M]** |
+| Main stream | `rtsp://<cam>:554/0/av0` — **1920×1080** (coded 1920×1088), level 120 | **[M]** |
+| Sub stream | `rtsp://<cam>:554/0/av1` — **640×360** (coded 640×368), level 63 | **[M]** |
+| Pixel format | `yuvj420p` (full range) | **[M]** |
+| 🔴 **Sub-stream rate** | **12.35 fps delivered** against 12.5 nominal — **zero stalls in 30 s**, keyframes every 2.00 s across 14 consecutive intervals with no deviation | **[M]** |
+| 🔴 **Main-stream rate** | **~9.3 fps delivered** against 12.5 nominal — **loses ~¼ of its frames and periodically drops whole GOPs** (10.0 s and 6.0 s keyframe gaps = four consecutive GOPs vanished). Reproduced twice at 9.29 / 9.26 fps | **[M]** |
+| Bitrate | sub **213 kbit/s** · main **821–827 kbit/s** | **[M]** |
+| Frame size | sub 2.2 KB mean / 10.9 KB max · main **11.0 KB mean / 92–97 KB max** | **[M]** |
+| Cause of main-stream loss | the 92–97 KB keyframe burst over WiFi; the substream's largest frame is 10.9 KB and it never stalls | **[I]** |
+| Keyframe interval | **2.00 s** (= 25 frames) — ONVIF reports `GovLength 100`, which is wrong | **[M]** |
+| Encoder configuration | ❌ **not settable by any route.** `SetVideoEncoderConfiguration` → HTTP 400, unknown to the dispatcher. Verified by effect: keyframe interval never moved off 2.00 s | **[M]** |
+| Resolution / bitrate / fps control | ❌ none. Encoder "options" echo the current setting back in menu shape | **[M]** |
+| RTSP authentication | ❌ none | **[M]** |
+
+> ### 🔑 Use `/0/av1`. The substream is not a degraded fallback — it is the reliable stream.
+>
+> It delivers what it promises, never stalls, and costs a quarter of the bandwidth. **The main
+> stream is the one that drops frames.** For recording, motion detection or Frigate on twelve units,
+> that is the whole decision.
+
+> #### 🔴 The codec lie is now *unfixable*, which is better news than "inadvisable"
+>
+> `README.md` warns that correcting the `H264` string would silently empty Home Assistant. **That
+> risk is now bounded: there is no local way to correct it.** `SetVideoEncoderConfiguration` does not
+> exist on this firmware, and `H265` is not offered anywhere in the encoder options. **No operator
+> can trip this by hand. [M]**
+>
+> ⚠️ **The remaining exposure is a vendor firmware update** — and the lie is present across at least
+> three firmware majors on unrelated owners' units **[R]**, so that is unlikely. If cameras ever
+> vanish from HA after an update, still check the codec string first.
+
+### Stills
+
+| | | |
+|---|---|---|
+| ✅ Working snapshot | **`http://<cam>:8001/snapshot`** — JPEG, **640×360**, no auth, ~54–90 ms | **[M]** |
+| Snapshot size | **9.8 KB – 56.8 KB**, scene-dependent. **Do not budget bandwidth from one sample** | **[M]** |
+| 🔴 ONVIF snapshot URI | advertised as `http://<cam>/onvif/snapshot` and **dead** — empty reply, connection closed, tried twice | **[M]** |
+| Full-resolution still | ❌ **none by any route.** The only still available is substream resolution | **[M]** |
+
+**[I]** The dead ONVIF URI is very likely why HA's ONVIF camera entity produces no still on these
+units, and why this project had to find `:8001` by hand.
+
+### Audio
+
+| | | |
+|---|---|---|
+| Microphone | ✅ present, all units — **PCM A-law, 8 kHz, mono, 64 kbit/s**, 40 ms ptime, always on | **[M]** |
+| Speaker hardware | ✅ **present in every unit** (physical inspection), and the firmware runs a **`tSpeaker`** thread | **[M]** |
+| Audio **out** / two-way talk | ❌ **not reachable.** Ten ONVIF audio-output/decoder operations all decline; SDP is `recvonly`; the ONVIF backchannel `Require` header is refused | **[M]** |
+| Advertised `AudioOutputs` | **`1`** — advertised and unreachable; joins the list of fields that are simply wrong | **[M]** |
+| Audio codec over ONVIF | ❌ unavailable — the audio encoder configuration is an **empty stub** (blank token, blank encoding, zero rates). The SDP is the only source | **[M]** |
+| Microphone mute | **[?]** not tested | |
+
+### Pan / tilt
+
+| | | |
+|---|---|---|
+| Axes | ✅ **pan + tilt.** No zoom — fixed lens | **[M]** |
+| ONVIF | ✅ `ContinuousMove` works, and HA's `onvif.ptz` works — capability arrives via `GetProfiles`, not `GetNodes` | **[M]** |
+| Vendor endpoint | `http://<cam>:8001/ptzctrl?act=<n>`, no auth | **[M]** |
+| **Movers** | **`1, 3, 5, 7, 9, 10, 11`** — 7 codes | **[M]** |
+| **Non-movers** | **`0, 2, 4, 6, 8`** — each tested from **two opposite corners** | **[M]** |
+| Pan axis | `act=1` ↔ `act=3` are **opposites** (net 4.3 after two ~49 moves) | **[M]** |
+| Tilt axis | `act=7` ↔ `act=9` are **opposites** | **[M]** |
+| Absolute direction (which is "left") | **[?]** — deliberately unpublished. It rests on the firmware honouring the ONVIF sign convention, on a device that misreports codec, MAC, gateway, GOP, framesize, serial and profile count. **One human eyeball closes it** | |
+| 🔴 Travel per command | **a single `act` drives the full range to a hard mechanical stop.** Pan ~5.2 s, tilt ~13.0 s. There is no partial step | **[M]** |
+| Repeatability | pan **5.1 / 5.2 / 5.2 / 5.3 s**; tilt **13.0 / 13.0 / 13.0 / 13.3 s** | **[M]** |
+| At the limit | ✅ **stops dead and stays there.** Repeat commands do nothing — no grind, no creep, no drift | **[M]** |
+| Position feedback | ❌ none. `GetStatus` → `ActionNotSupported` | **[M]** |
+| Presets / home | ❌ not implemented | **[M]** |
+| `Stop` | ❌ `ActionNotSupported`. The ONVIF `<Timeout>` is **ignored** | **[M]** |
+
+> ### ✅ You *can* return to a known position — the limits are the reference
+>
+> Timed software presets are **not** feasible: every command runs to a stop, so there is no partial
+> move to count. **But the mechanical limits are repeatable and commandable.** `act=1` always ends at
+> the same pan extreme, `act=3` at the other, `act=7`/`act=9` at the tilt extremes.
+>
+> **So a "go to a known corner" macro exists today** — `act=3` then `act=9`. It does not restore
+> *your* framing, but it converts aim from **irreversible** to **repeatable**, which is the
+> difference between a ladder and a command. **[M]** for the limits; **[I]** that a corner-to-corner
+> home is the full capability.
+
+### Storage and recording
+
+| | | |
+|---|---|---|
+| microSD slot | ✅ **present in every unit** (physical inspection); vendor manual says **up to 128 GB, no hot-swap** | **[M]** / **[R]** |
+| Firmware SD support | ✅ **`sddetectTask` runs** — the firmware does look at the card | **[M]** |
+| ONVIF storage / recording | ❌ `GetStorageConfigurations`, `GetRecordings` → `ActionNotSupported` | **[M]** |
+| Local playback / export | ❌ none found | **[M]** |
+| Card format the firmware wants | **[?]** — FAT32 is the family convention **[R]**; unverified here | |
+
+### Events, motion and analytics
+
+| | | |
+|---|---|---|
+| On-device motion detection | ✅ **runs** — `tMotDet` thread | **[M]** |
+| ONVIF events | ❌ **no transport of any kind.** `GetEventProperties`, `CreatePullPointSubscription` and `Subscribe` are all HTTP 400 — three independent negatives | **[M]** |
+| 🔴 Advertised event support | `WSPullPointSupport="true"`, `MaxPullPoints="10"` — **a lie.** A client that trusts it builds a path that cannot work | **[M]** |
+| ONVIF analytics | ❌ five operations decline; `GetMetadataConfigurations` self-reports `Analytics=false` | **[M]** |
+| Metadata/analytics RTSP track | ❌ absent from the SDP | **[M]** |
+| **Consequence** | **Home Assistant will never show a motion sensor for these cameras.** Structural, not a misconfiguration — no YAML fixes it | **[M]** camera side, **[I]** the HA code path |
+| AI detection / auto-tracking | exists in the vendor app's vocabulary (`AiDetect`, `MotionTrack`); ❌ not reachable locally | **[M]** |
+
+### Imaging
+
+| | | |
+|---|---|---|
+| Brightness / contrast / saturation / exposure / focus / white balance | ❌ **no imaging control at all.** `GetImagingSettings` and `SetImagingSettings` are **HTTP 400 — absent**, despite the Imaging service being advertised with its own XAddr | **[M]** |
+| IR-cut filter | ✅ hardware present, **`tIcrCtrlThread` runs**; ❌ no control surface | **[M]** |
+| IR LEDs | ✅ hardware present; ❌ no auxiliary command, no imaging extension | **[M]** |
+| Day/night switching | observed to work automatically; ❌ not controllable | **[I]** |
+| OSD / text overlay | ❌ `GetOSDs`, `SetOSD`, `CreateOSD`, `DeleteOSD` all decline | **[M]** |
+
+⚠️ **The IR-LED negative is weak by its own author's admission** — the sweep ran in daylight, and
+firmwares commonly refuse to light an IR lamp while the ambient sensor reads "day". A post-dusk
+re-test is worthwhile.
+
+### Network and protocols
+
+| Port | Service | Auth | |
+|---|---|---|---|
+| **80** | `Ginatex-HTTPServer` — ONVIF, plus a dead Hikvision-ISAPI-shaped surface | ❌ none | **[M]** |
+| **554** | `TAS-Tech Streaming Server V100R001` — RTSP | ❌ none | **[M]** |
+| **6670** | 🔴 **unauthenticated debug console** (`tCmdServer`) — see below | ❌ none | **[M]** |
+| **8001** | `TAS-Tech IPCam` — exactly two endpoints, `/snapshot` and `/ptzctrl` | ❌ none | **[M]** |
+| **20202** | `/setwifi` provisioning — **stays open after pairing** | ❌ none | **[M]** |
+| 3576 | unknown. Connects, then clean EOF to everything | ❌ none | **[M]** |
+| UDP **32108** | PPCS `LanSearch` | — | **[M]** |
+| UDP **32100** | PPCS cloud directory | — | **[M]** |
+
+| | | |
+|---|---|---|
+| WiFi | WPA2; the interface is `wlan0` and **no Ethernet is wired on these units** | **[M]** |
+| WiFi band | **2.4 GHz** — the SSID these units are joined to is 2.4 GHz-only. ⚠️ **Whether the radio *also* supports 5 GHz is [?]** — vendor material advertises dual-band for *some* iCam365 models, and ONVIF cannot tell us (all three Dot11 operations decline). **Do not assume 2.4-only when planning; do not assume dual-band either** | **[M]** / **[?]** |
+| ONVIF Dot11 config | ❌ `GetDot11Capabilities`, `GetDot11Status`, `ScanAvailableDot11Networks` all decline — **on a WiFi-only device** | **[M]** |
+| HTTPS / TLS | ❌ **unsupported**, not merely disabled. All TLS versions `false`, `Dot1X false`, `HttpDigest false`, `DefaultAccessPolicy true` | **[M]** |
+| P2P / cloud stack | **CS2 Network PPCS (PPPP family)**, `libPPCS_API.so`. **Not TUTK** — it carries a *copied* TUTK command vocabulary. UID prefix `TANGE-` | **[M]** |
+| Cloud hosts | `p2p-00{1,2,3}.host.tange365.com`, `ep.tange365.com` | **[M]** |
+| Local P2P control | ✅ session establishes on the LAN with the cloud firewalled; plaintext, not obfuscated | **[M]** |
+| Cloud device-login | 🔴 genuinely **encrypted** (`0xF1F9`) — and the bind never completes with `userid:"0"` | **[M]** |
+| DHCP / DNS / NTP | DHCP client works; DNS from DHCP is correct; **NTP `0.0.0.0`, interval 0 — no NTP** | **[M]** |
+| ONVIF default gateway | reports a **wrong subnet** — do not use the field | **[M]** |
+| ONVIF scopes | **empty** — so scope-filtering discovery clients will not match these | **[M]** |
+| ONVIF reboot | ❌ **`SystemReboot` is a measured no-op.** A `tReboot` thread exists, so this is a wiring gap, not a missing capability | **[M]** |
+
+> ### 🔴 `:6670` is an unauthenticated debug console, and it is the sharpest security item here
+>
+> Not a "vendor binary protocol". Framing is `[BE length][BE command id][payload]`, **a payload is
+> mandatory**, and it answers: `id=2` → **the full task table**; `id=3` → **a semaphore table with
+> live kernel addresses**; `id=5` → **`redirectionOutput`** (console output redirection, failing only
+> for want of an argument); ids **6–14** recognised-but-silent. **[M]**
+>
+> ❌ **RETRACTED: "command ids 0–599 were swept and none is valid."** That sweep sent no payload,
+> which is why everything looked invalid.
+>
+> **Anyone who can reach the camera VLAN can read its internal task layout and live kernel
+> addresses, unauthenticated.** Whether the redirect can be made to yield a console is
+> [an open question](#open-questions), deliberately not pushed.
+
+### 🔴 Security posture
+
+Unchanged in substance and worth restating in one place: **nothing on this camera authenticates
+anything.** A single unauthenticated ONVIF `GetUsers` returns the **administrator password in
+cleartext**, on both units, and changing the password does not help. Add the `:6670` console to
+that surface. **The camera VLAN's isolation and its default-deny to WAN are the entire control set.
+[M]** → [security.md](docs/security.md)
+
+### Firmware — what actually differs between builds
+
+🔴 **Do not read any of this as fleet-wide. These are per-build behaviours, and conflating the two
+has already caused two errors in one day.**
+
+| | `57.0.8.0` | `57.0.2.0` | |
+|---|---|---|---|
+| Units | `icam365-01` | `icam365-02`, `icam365-wall` | **[M]** |
+| **Clock** | ✅ **real wall-clock time** (`2026-08-06 04:23:21`) | ❌ **epoch — a seconds-since-boot counter** | **[M]** |
+| **Burnt-in OSD timestamp** | ✅ correct | 🔴 **`1970-01-01` rendered into the pixels** (one unit reads `1969-12-31 17:25` — epoch **minus 7 hours**, i.e. a timezone offset applied to a clock that was never set, so **time and timezone are separately broken**) | **[M]** |
+| `SetSystemDateAndTime` | **[?]** | ❌ does not exist — the wrong date is **unfixable in place** | **[M]** |
+| Reboot detection via `GetSystemDateAndTime` | ❌ **no** — the clock never resets | ✅ **yes** — the value goes backwards | **[M]** |
+| Answers PPCS `LanSearch` | ❌ **no** | ✅ yes | **[M]** |
+| WiFi config survives a power cut | ✅ yes — one 41-minute mains cut, unattended, came back on the same SSID | ❌ **no** — lost on a single clean flip | **[M]** |
+
+> ❌ **RETRACTED: "the 1970 timestamp affects all units."** It is a `57.0.2.0` defect. **For a
+> driveway camera that changes the answer from "live with it" to "run the newer build".**
+>
+> ⚠️ **But the confound is severe and unresolved.** `icam365-01` is simultaneously the **only**
+> cloud-bound unit, the **only** `57.0.8.0` unit, and the **only** one that ignores `LanSearch`.
+> **Nothing measured on it can be attributed to firmware or to cloud state separately.** The
+> durability row above is a real controlled contrast on *effect* and **[I]** on *mechanism*; the
+> leading alternative — a flash-commit bug fixed between the builds — fits every observation
+> equally well. Twelve units make it separable; until then, say which of the two a conclusion rests
+> on, or admit it cannot tell.
+>
+> ⚠️ **[I]** and unchecked: `57.0.8.0` holds real time with **no NTP**, so it must be getting it from
+> the cloud binding or an RTC. If it is the binding, a `57.0.8.0` unit behind the WAN deny may drift
+> back to epoch — which would make the *reason* it has the right time load-bearing.
+
+### Identity — none of it identifies a camera
+
+| Field | Value | |
+|---|---|---|
+| Manufacturer | `EYEPLUS` | **[M]** |
+| Model | `EYEPLUS_DEV` (literally "dev") | **[M]** |
+| Serial | `12345679890` — **identical on every unit, and on unrelated owners' cameras worldwide** | **[M]** / **[R]** |
+| HardwareId | `88` — same | **[M]** / **[R]** |
+| Hostname | `localhost` | **[M]** |
+| ONVIF `HwAddress` / `unique_id` | 🔴 **not a MAC** — six *consecutive* values above `0xff`, i.e. a formatted pointer | **[M]** |
+| HTTP server | `Ginatex-HTTPServer` | **[M]** |
+| RTSP server | `TAS-Tech Streaming Server V100R001` | **[M]** |
+| `:8001` server | `TAS-Tech IPCam` | **[M]** |
+
+> #### ❌ RETRACTED 2026-08-06: "identify these cameras by ONVIF `unique_id`"
+>
+> **The `unique_id` is a firmware fingerprint, not a device identity — and this is measured, not
+> suspected.** Two units with **different real MACs**, both on `57.0.2.0`, report a **byte-identical**
+> `HwAddress`. **[M]**
+>
+> 🔴 **Consequence for a 12-unit fleet: adding two same-firmware cameras to Home Assistant is a
+> silent takeover, not an error.** The second collides with the first.
+>
+> ✅ **Identify a camera by the real MAC from the DHCP reservation or the AP association list.** Not
+> by serial, not by `unique_id`, not by "cam #N" — that numbering is
+> [documented as inconsistent across sessions](CLAUDE.md).
+>
+> **The general shape, which is the reusable part:** where a device's self-report is systematically
+> unreliable, **the sticker and the router outperform the API.** That has now happened three times
+> on this hardware.
+
+### What is still unmeasured
+
+Marked **[?]** so nobody reads them as "not applicable":
+
+| | |
 |---|---|
-| Manufacturer | `EYEPLUS` |
-| Model | `EYEPLUS_DEV` (literally "dev") |
-| Serial | `12345679890` — **the same on both units** |
-| HardwareId | `88` |
-| Hostname | `localhost` |
-| ONVIF scopes | empty |
-| HTTP server | `Ginatex-HTTPServer` |
-| RTSP server | `TAS-Tech Streaming Server V100R001` |
-| API server (`:8001`) | `TAS-Tech IPCam` |
+| Lens focal length, aperture, field of view | **[?]** |
+| IR illumination range | **[?]** |
+| Power draw, and supply voltage/current | **[?]** |
+| Weatherproofing rating (one unit is already outdoors) | **[?]** |
+| Operating temperature range | **[?]** |
+| Image sensor part | **[?]** |
+| SoC / platform | **[?]** — the firmware stack is TAS-Tech/Ginatex, whose previous generation ran **Goke GK7102**; that part is H.264-only so **this is later silicon, unidentified** |
+| Absolute PTZ directions, and total pan/tilt sweep in degrees | **[?]** |
+| Whether `3576` is unit-, revision- or firmware-correlated | **[?]** |
+| Microphone mute | **[?]** |
+
+### Open questions
+
+| | |
+|---|---|
+| Can `:6670`'s `redirectionOutput` be made to yield a live console? | **deliberately not pushed** — high value, real blast radius, gated on JP |
+| Does the firmware execute a script from the SD card at boot? | runbook written; **[I]** ~30% |
+| Is durability a property of the **cloud binding** or of the **firmware version**? | the day's central confound; separable with 12 units |
+| Do two same-firmware units collide on `unique_id`? | ✅ **answered — yes, measured** |
+
+---
 
 ## Quick start
 
