@@ -106,23 +106,27 @@ Three rules follow, and a future reader will otherwise violate all of them:
 
 Do destructive work on `icam365-02`. That is what it is for.
 
-#### The choice rests on a natural experiment — and it is inferred, not measured
+#### Why that split, and why it turned out to matter
 
-`icam365-01` was paired in 2024 **via the phone app, with cloud access**, and has survived power
-cuts ever since. `icam365-02` was paired **locally with no cloud bind**, and lost its WiFi
-config on [a single clean power cycle](docs/provisioning.md#-provisioning-does-not-survive-a-power-cycle).
+A natural experiment, now half-measured:
 
-That is real support for the hypothesis that **credentials only commit to flash once a cloud
-bind completes** — and if it holds, the constraint changes shape usefully:
+| | Paired how | Survives a power cycle? |
+|---|---|---|
+| `icam365-01` | 2024, **phone app, with cloud** | **Yes** — through every power cut since. **[I]** |
+| `icam365-02` | today, **locally, no cloud bind** | **No** — [confirmed on a single clean flip](docs/provisioning.md#-answered-it-is-not-durable-confirmed). **[M]** |
 
-> Not *"these cameras cannot work on an isolated VLAN"*, but **"they need one supervised cloud
-> pairing, once, before isolation."** Much more tolerable — and exactly what the
-> [capture work](docs/provisioning.md#-still-open-and-it-is-one-clean-test) aims to remove.
+So the constraint is real, and it has a usable shape:
 
-> ⚠️ **This is inferred, not measured.** Nobody is going to power-cycle `icam365-01` to confirm
-> it — if it turned out non-durable, we would have broken the production camera to learn that.
-> The 2024 history is good enough to act on and is **not** a measurement. The destructive
-> version of that test belongs on `icam365-02`.
+> **These cameras need one supervised, internet-connected app pairing before they can live on an
+> isolated VLAN.** Local `/setwifi` works, but produces a camera that forgets on every power cut.
+
+> ✅ **This retroactively validates sending `icam365-01` outside.** Had the lab unit gone up by
+> the cars, the first power blip would have orphaned it — at the top of a ladder, looking like
+> dead hardware.
+
+> ⚠️ **The `icam365-01` row stays inferred.** Nobody is power-cycling the production camera to
+> confirm it: a negative result would mean having broken it to learn that. Its 2024 history is
+> good enough to act on and is **not** a measurement.
 
 ## Identity, such as it is
 
