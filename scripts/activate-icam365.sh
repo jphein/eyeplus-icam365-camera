@@ -15,8 +15,23 @@
 # A locally-provisioned camera (userid "0", never cloud-bound) loses its WiFi
 # config on EVERY power cycle — confirmed, docs/provisioning.md. This script
 # is the recurring remedy, not a one-time fix: rerun it after every power cut.
+#
+# Deploying with real values baked in: substitute the defaults ANCHORED to
+# their variable names, e.g.
+#   sed -e 's/ICAM_SSID:-my-iot-ssid/ICAM_SSID:-<ssid>/' \
+#       -e 's/ICAM_KEY:-CHANGE-ME/ICAM_KEY:-<psk>/' \
+#       -e 's/ICAM_VERIFY_IP:-192.168.1.23/ICAM_VERIFY_IP:-<camera ip>/'
+# A bare global s/CHANGE-ME/<psk>/g once rewrote the guard below into
+# [ "$KEY" = "<psk>" ], which then rejected the very value it was given.
 
 set -u
+
+# nmcli's network-control needs polkit authorization that SSH and detached
+# sessions lack ("Not authorized to control networking"); a local desktop
+# session has it. Re-exec through sudo when that is available untended.
+if [ "$(id -u)" -ne 0 ] && sudo -n true 2>/dev/null; then
+    exec sudo -n "$0" "$@"
+fi
 
 SSID="${ICAM_SSID:-my-iot-ssid}"            # the legacy camera SSID
 KEY="${ICAM_KEY:-CHANGE-ME}"                # its WPA2 PSK
@@ -25,7 +40,9 @@ AP_URL="http://192.168.200.1:20202/setwifi" # camera's own AP address — fixed
 
 say() { printf '\n== %s\n' "$*"; }
 
-if [ "$KEY" = "CHANGE-ME" ]; then
+# Split literal: a deploy-time global sed on the placeholder must not be able
+# to rewrite this comparison.
+if [ "$KEY" = 'CHANGE''-ME' ]; then
     echo "Set ICAM_KEY (and ICAM_SSID / ICAM_VERIFY_IP) before running." >&2
     exit 1
 fi
