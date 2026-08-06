@@ -51,6 +51,35 @@ from the vendor's server proved packets crossed the firewall **in both direction
 could be pinned to the application layer rather than the network. Without that, "no bind" and
 "the rule didn't work" would have been indistinguishable.
 
+### The sibling rule, learned on the Anyka camera: a broken thing may be load-bearing
+
+> **A string that looks broken may be a dead path whose failure is load-bearing.**
+
+Cheap camera firmware is full of code that fails silently — wrong sysfs paths, unhandled branches,
+features half-ported from a sibling product. It reads as an obvious backlog of one-line fixes.
+
+**On the [Anyka camera](../anyka3918-gc1084-camera/), one of those was fixed and it broke a
+feature that had worked for weeks.** The vendor app wrote a sysfs node that did not exist on that
+kernel build — a bug by inspection. Repairing the path made the app's automatic day/night loop
+start landing its writes **for the first time since install**, and it began reverting every manual
+IR-cut toggle. **The silent failure was the only reason manual control had worked at all.**
+
+**Before repairing a wrong-looking path, establish what currently depends on it failing.**
+
+Two corollaries that apply directly to these cameras:
+
+* **"Never observed" is only evidence while the conditions that prevented it hold.** The conflict
+  had been predicted and dismissed because the loop had never been seen to act — it had never
+  acted *because the path was broken*, and the next step was to fix the path. If you are about to
+  change a condition, your observational record expires at that moment.
+* **On a device with no arbitration, enabling a dormant writer is not an additive change.** These
+  firmwares have no locking anywhere. A second actor that starts working is a second actor that
+  starts *fighting*.
+
+This is the same family as the rule above. *"200 means parsed, not honoured"* says do not trust a
+device's account of what it did. This one says do not trust your own account of what it does not
+do.
+
 ## What works
 
 | | |
