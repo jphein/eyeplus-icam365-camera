@@ -128,7 +128,7 @@ cause looks like an improvement.
 | ✅ PTZ | ONVIF `ContinuousMove` and HA's `onvif.ptz`. No presets, but the mechanical limits are repeatable, so **a "go to a known corner" macro exists** — aim is recoverable, not irreversible |
 | ✅ Local provisioning | [No cloud account needed](docs/provisioning.md) |
 | ✅ **Day/night (IR-cut)** | **Vendor channel only** — `SET_DAYNIGHT`, [measured by the image going monochrome and back](#specifications). ONVIF cannot: the imaging operations do not exist |
-| ✅ **Two-way audio** | **Vendor channel only** — speaker output confirmed by ear. ONVIF has no backchannel at all |
+| ⚠️ Two-way audio | **Unproven.** Speaker hardware and a `tSpeaker` thread are confirmed; the control path is not. ONVIF has no backchannel at all |
 | ✅ Availability monitoring | HA binary sensor + health sensor |
 | ⚠️ WiFi persistence | **Depends entirely on how the unit was paired.** App-paired with cloud → [survives a power cycle, measured](docs/provisioning.md#-confirmed-m-a-camera-does-survive-a-power-cycle). Locally provisioned with `userid:"0"` → [loses its config on a single clean flip](docs/provisioning.md#-answered-it-is-not-durable-confirmed), measured. ⚠️ **The instruction that used to sit here — *"every camera needs one supervised app pairing before isolation"* — is withdrawn as premature.** It was derived from a cause that is [retracted to unproven](#-retracted-2026-08-06-icam365-01-was-app-paired-in-2024-with-cloud); the two units differ in **firmware** as well as pairing. If firmware is the real variable the correct instruction is *"run `57.0.8.0`"*, which is far cheaper. **Settle it on one spare before pairing twelve.** |
 | ❌ Position feedback / presets / home | Not implemented. **No way to restore a framing in software.** |
@@ -399,7 +399,7 @@ units, and why this project had to find `:8001` by hand.
 |---|---|---|
 | Microphone | ✅ present, all units — **PCM A-law, 8 kHz, mono, 64 kbit/s**, 40 ms ptime, always on | **[M]** |
 | Speaker hardware | ✅ **present in every unit** (physical inspection), and the firmware runs a **`tSpeaker`** thread | **[M]** |
-| Audio **out** / two-way talk | ✅ **WORKS — over the vendor channel.** JP heard music play out of the camera, 2026-08-06. ❌ Not reachable over ONVIF/RTSP: ten audio-output operations decline, SDP is `recvonly`, and the backchannel `Require` header is **answered `200` and silently ignored** where RFC 2326 mandates `551` | **[M]** |
+| Audio **out** / two-way talk | ⚠️ **UNPROVEN — a claimed confirmation was withdrawn, see below.** ❌ Not reachable over ONVIF/RTSP: ten audio-output operations decline, SDP is `recvonly`, and the backchannel `Require` header is **answered `200` and silently ignored** where RFC 2326 mandates `551` | **[M]** for the ONVIF negative |
 | Advertised `AudioOutputs` | **`1`** — advertised and unreachable; joins the list of fields that are simply wrong | **[M]** |
 | Audio codec over ONVIF | ❌ unavailable — the audio encoder configuration is an **empty stub** (blank token, blank encoding, zero rates). The SDP is the only source | **[M]** |
 | Microphone mute | **[?]** not tested | |
