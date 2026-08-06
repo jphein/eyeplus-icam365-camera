@@ -62,27 +62,77 @@ If that is right, the consequence is sharp:
 That is a very different proposition from "configure it locally and forget it", and it applies to
 any future unit of this family.
 
-### Pending: a scoped WAN window to test it
+### ❌ The WAN window was run: the cloud bind does not complete
 
-**Authorised but not yet done.** The plan is a **time-boxed, pairing-only WAN window** for one
-camera, to see whether a cloud-completed bind produces a configuration that survives a power
-cycle.
+**A time-boxed, pairing-only WAN window was opened for the lab camera. The bind failed — and it
+failed at the application layer, not the network.** [M]
 
-The window is also to be used to **capture the entire cloud conversation**, so that the bind can
-potentially be **replayed locally** in future — which would remove the need for internet access
-at pairing time altogether.
+```
+camera -> p2p-00{1,2,3}.host.tange365.com:32100/udp
+            f1 00 00 00                MSG_HELLO
+cloud  -> camera
+            f1 01 00 10 …              MSG_HELLO_ACK
+            decodes to family=2, port=25192, ip=<the device's public IP>
+            i.e. a STUN-style reflection of its own external address
+camera -> cloud
+            f1 f9 00 54 …              device login (0xF1F9), 84-byte body
+cloud  -> camera
+            *** nothing ***
+```
 
-**Documented as pending. Do not read the result into anything until it has been run.**
+Over roughly **7 minutes with WAN open**, inbound cloud traffic was **exactly two frames, both
+`HelloAck`**. The device login went out repeatedly and was ignored every time.
 
-> ⚠️ **Scope the window to `icam365-02` only** — never the whole camera VLAN, and never
-> `icam365-01`. The production unit must not be power-cycle tested either; see the
+> **The `HelloAck` is what makes this conclusive, and it is worth stating explicitly.** It proves
+> packets crossed the firewall and NAT **in both directions**. Without that observation, "the
+> bind didn't complete" would be indistinguishable from "the firewall rule didn't work" — and
+> someone would eventually re-run the whole exercise to find out which.
+
+**Most likely cause — [I], untested:** `userid:"0"`. No real account owns the device, so the
+masterserver has nothing to bind it *to*. A genuine app pairing supplies a real account id, and
+the local shortcut cannot.
+
+### Three things that follow
+
+1. **Capture-and-replay has nothing to replay.** The original hope was to record a successful
+   bind and reproduce it locally, removing the need for internet access at pairing time. The
+   capture contains the *request* and **no acceptance was ever observed**, so there is no
+   exchange to replay. That plan cannot be built from this data.
+2. **The local-impersonation idea is withdrawn** — recorded rather than deleted, because the
+   reasoning matters. It was approved on the basis of "answer the hello and we're done".
+   Answering the hello is easy; **synthesising a `DEV_LGN_ACK` nobody has ever observed, for a
+   login we cannot parse, is a much larger problem.**
+3. **The flash-commit hypothesis is untestable by this route**, because no successful bind can be
+   produced to test it with.
+
+> ⚠️ **A capture trap, found the hard way.** `pkill -f "ssh.*tcpdump"` **matched its own command
+> line** and killed the invoking shell mid-command, silently losing a file append. It was caught
+> only by checking the file afterwards rather than assuming the write had landed.
+>
+> Two general lessons: **`pkill -f` can match the process running it**, and **verify the artefact,
+> not the exit code** — which is the same discipline this whole page is built on.
+
+### ❓ Still open, and it is one clean test
+
+**Does `icam365-02` survive a power cycle now?** It has had *real cloud contact* — the
+`HelloAck` — even though the login was refused. That is more than it had before.
+
+| If it… | Then |
+|---|---|
+| **survives** | Config persists after all. The earlier loss was something else — most plausibly a multi-flip factory reset — and **these cameras are cleared for outdoor use.** |
+| **is lost again** | Non-durability is confirmed and the outdoor limitation is real. |
+
+The answer decides whether this page's outdoor guidance is a **warning** or a **footnote**.
+
+> ⚠️ **Run it on `icam365-02` only. Never on `icam365-01`.** The production camera's 2024
+> app-pairing history is the *only* evidence that app-paired units are durable. Power-cycling it
+> would destroy that evidence and the production camera in the same move. See the
 > [operational rules](../README.md#-operational-rules--icam365-01-is-production).
 
 **Suggestive, but not a measurement:** `icam365-01` was paired in 2024 through the phone app
 **with cloud access**, and has survived power cuts since. `icam365-02` was paired locally with no
-cloud bind and lost its config on the first one. That is a natural experiment pointing the same
-way as the hypothesis above — and it stays **inferred**, because confirming it would mean
-power-cycling the production camera to find out.
+cloud bind and lost its config on the first one. That natural experiment points the same way as
+the hypothesis above — and it stays **inferred**, for the reason in the warning.
 
 ## ⚠️ A `200` does not mean it worked
 

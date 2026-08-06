@@ -35,6 +35,22 @@ understood"** — see [ai-and-events.md](docs/ai-and-events.md#the-p2p-channel--
 **Practically:** verify effects, never statuses. PTZ was only believed after measuring image
 change against a noise floor; provisioning was only disbelieved after a power cycle.
 
+### The same rule one level up: config is not behaviour
+
+A firewall rule that *reads* correct is not a firewall rule that *behaves* correctly. When the
+WAN window was closed again it was verified three ways — absent from `uci show firewall`, absent
+from the live `nft list ruleset`, **and behaviourally: zero new inbound cloud packets in the
+following 60 seconds.**
+
+**The third check is the one that counts.** The first two are the device telling you about
+itself, which is precisely what this page says not to trust.
+
+It cuts the other way too, and that is what made the cloud result usable: a `HelloAck` arriving
+from the vendor's server proved packets crossed the firewall **in both directions**, so
+[the bind failure](docs/provisioning.md#-the-wan-window-was-run-the-cloud-bind-does-not-complete)
+could be pinned to the application layer rather than the network. Without that, "no bind" and
+"the rule didn't work" would have been indistinguishable.
+
 ## What works
 
 | | |
@@ -44,7 +60,7 @@ change against a noise floor; provisioning was only disbelieved after a power cy
 | ✅ PTZ | ONVIF `ContinuousMove` and HA's `onvif.ptz` — [but testing it destroys the aim](docs/ptz.md) |
 | ✅ Local provisioning | [No cloud account needed](docs/provisioning.md) |
 | ✅ Availability monitoring | HA binary sensor + health sensor |
-| 🔴 WiFi persistence | **A single clean power cycle wipes it** — confirmed. [Blocks outdoor use](docs/provisioning.md#-provisioning-does-not-survive-a-power-cycle) until the pending WAN-window test resolves the cause |
+| 🔴 WiFi persistence | **A single clean power cycle wiped it** once. The cloud-bind explanation is now [a measured dead end](docs/provisioning.md#-the-wan-window-was-run-the-cloud-bind-does-not-complete) — [one clean re-test decides](docs/provisioning.md#-still-open-and-it-is-one-clean-test) whether outdoor use is blocked |
 | ❌ Position feedback / presets / home | Not implemented. **No way to restore a framing in software.** |
 | ❌ Motion events | [Structurally impossible over ONVIF](docs/ai-and-events.md) — no pull-point subscription |
 | ❌ AI detection / auto-tracking | Exists in hardware, [reachable only over the vendor P2P channel](docs/ai-and-events.md#where-the-features-actually-live) |
@@ -101,7 +117,7 @@ bind completes** — and if it holds, the constraint changes shape usefully:
 
 > Not *"these cameras cannot work on an isolated VLAN"*, but **"they need one supervised cloud
 > pairing, once, before isolation."** Much more tolerable — and exactly what the
-> [capture work](docs/provisioning.md#pending-a-scoped-wan-window-to-test-it) aims to remove.
+> [capture work](docs/provisioning.md#-still-open-and-it-is-one-clean-test) aims to remove.
 
 > ⚠️ **This is inferred, not measured.** Nobody is going to power-cycle `icam365-01` to confirm
 > it — if it turned out non-durable, we would have broken the production camera to learn that.

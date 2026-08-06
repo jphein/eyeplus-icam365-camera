@@ -102,6 +102,33 @@ rather than the iLnk scheme used by public cam-reverse tooling — note that `0x
 **high bit set**, which is characteristic of the AVAPI numbering rather than a plain sequential
 command id.
 
+### The LAN channel is tractable. The cloud channel is not.
+
+This is the useful division, and it was established by measurement rather than assumed. [M]
+
+| Channel | State |
+|---|---|
+| **LAN control** | In the clear. Session established, frames acked, [reverse-engineerable](#where-it-stops) |
+| **Cloud device-login** | **Genuinely encrypted** |
+
+The cloud login frame — `0xF1F9`, 84-byte body, fixed ~29-byte prefix, varying tail, almost
+certainly device-login-carrying-a-key — **does not decode at XQ rot 0/4/8**. It is not TLS, but
+it is not merely obfuscated either.
+
+> **An earlier working assumption is falsified by that.** The expectation was that the PPPP
+> payloads were *obfuscated rather than encrypted*, and therefore that the whole stack was the
+> tractable layer. **True for the LAN side, false for the cloud side.**
+>
+> **[I]** The pattern suggests the vendor encrypts **account-bearing** traffic while leaving
+> device-local control in the clear — which is a coherent design choice, and good news for
+> anything you want to do on your own network.
+
+> **`0xF1F9` is absent from cam-reverse's message table**, which is a useful marker: it is
+> roughly where the public prior art stops covering this device.
+
+Full cloud transcript and what it means for pairing:
+[provisioning.md](provisioning.md#-the-wan-window-was-run-the-cloud-bind-does-not-complete).
+
 **This is a real reverse-engineering project, not a configuration task** — but it is no longer
 blocked on the thing that looked like a wall. Port 6670, which
 [speaks a length-prefixed binary protocol with large or magic command ids](vendor-api.md#port-6670--partially-reverse-engineered),
