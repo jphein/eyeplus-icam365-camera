@@ -163,17 +163,74 @@ Measured:
 | `icam365-01` | `3a80ec:3a80ed:3a80ee:3a80ef:3a80f0:3a80f1` | stable over repeated calls |
 | `icam365-02` | `3ab284:3ab285:3ab286:3ab287:3ab288:3ab289` | stable over repeated calls, **and byte-identical across a reboot plus a network change 35 minutes apart** |
 
-Confirmed from HA's side too: the stored config-entry title for the first camera is
-byte-identical to what the camera reports live today, and the newly added second camera minted
-exactly its own live value. **The id is a deterministic per-device value.**
+### ❌ RETRACTED 2026-08-06: "deterministic per-device value … there is no collision"
 
-Consequences:
+This section concluded **"the id is a deterministic per-device value"** and therefore **"the two
+cameras have different values, so there is no collision"**. The first half is right; **the second
+is false, and acting on it would break a fleet.**
 
-* **Delete-and-re-add is much safer than believed** — it should derive identical `unique_id`s and
-  therefore restore the same entity IDs.
-* **The two cameras have different values, so there is no collision** when both are added.
-* The prohibition that followed from the old claim can be relaxed. Still grep dashboards and
-  packages before deleting an entry — cheap, and good practice regardless.
+The claim rested on a **two-unit sample whose firmware also differed** (`57.0.8.0` vs `57.0.2.0`)
+— two variables, one conclusion. A third unit separated them: **[M]**
+
+| unit | real MAC (DHCP) | firmware | `unique_id` |
+|---|---|---|---|
+| `icam365-02` | `…:f7:bf:6d` | `57.0.2.0` | `3ab284:…:3ab289` |
+| `icam365-wall` | `…:df:ac:2e` | `57.0.2.0` | **identical** |
+| `icam365-01` | `…:df:d6:3f` | `57.0.8.0` | `3a80ec:…:3a80f1` |
+
+**Two physically distinct cameras on the same firmware return byte-identical ids.** It is
+deterministic *per build*, not per device — consistent with
+[the value being a formatted pointer rather than a MAC](../README.md#-retracted-2026-08-06-identify-these-cameras-by-unique_id).
+`GetDeviceInformation` corroborates: `SerialNumber` and `HardwareId` are identical across units
+too, and an unrelated owner's `EYEPLUS_DEV` reports the same serial `12345679890` on a different
+firmware major. **[R]** These are firmware-family constants.
+
+### 🔴 What a collision actually does: a silent takeover, not a rejection
+
+**This is the operationally dangerous part, and it is the opposite of what "already configured"
+sounds like.** From the HA ONVIF integration source: **[M]**
+
+```python
+await self.async_set_unique_id(self.device_id, raise_on_progress=False)
+self._abort_if_unique_id_configured(
+    updates={CONF_HOST, CONF_PORT, CONF_NAME, CONF_USERNAME, CONF_PASSWORD})
+```
+
+Core's `_abort_if_unique_id_configured` **applies `updates` to the existing entry, schedules a
+reload, and only then raises `already_configured`.** The stored entry data is exactly those five
+fields — so `updates=` overwrites **every field the entry has.**
+
+> **Adding a second camera on the same firmware overwrites the first camera's entry with the new
+> camera's address and credentials, reloads it against the new camera, and reports "already
+> configured".** The old entity IDs survive and now stream the **wrong camera**.
+
+* The takeover happens **before** the H264-profile check, so the codec gate never protects you.
+* The collision is at **three** levels: config-entry `unique_id`, device-registry `identifiers`
+  **and** `connections`, and every entity `unique_id`. Only the first has any override path.
+* `unique_id` falls back to **`SerialNumber`** when `HwAddress` is empty — and that is
+  `12345679890` on every unit, so an empty HwAddress collides *everything* unconditionally.
+* Sole visible symptom: the **device renames itself while entity IDs do not**. Name/entity
+  disagreement is the fingerprint.
+
+> **Same shape as `200 OK` and `DrwAck`, one layer up: `already_configured` means "a matching
+> unique_id existed", not "nothing was changed."**
+
+🔴 **Do not add another camera through the ONVIF integration.** For a fleet, key on
+user-supplied config instead — a generic camera / go2rtc stream plus raw-SOAP `ContinuousMove`
+for PTZ, which is already measured working. That cannot collide at any fleet size, and it takes
+[the codec lie](../README.md#-and-it-already-applies-here-the-codec-lie-is-load-bearing) off the
+critical path (keep the warning documented anyway). What is lost is the `onvif.*` entity services:
+`reboot` (**[M]** ineffective here), `wiper` (**[M]** none fitted), `set_date_time`, `autofocus`,
+and `ir_lamp` — **the last is the only plausible real loss; test it on a spare first.**
+
+* ⚠️ **Delete-and-re-add is NOT safe on a fleet.** On a single camera it restores the same entity
+  IDs; with two same-firmware units in play it is the exact mechanism above.
+* 🔑 **But "the address is permanent" is also wrong** — `updates={CONF_HOST, …}` *is* an in-place
+  host update, so re-running the config flow against **the same camera** at a new address moves it
+  and preserves entity IDs. One mechanism, two faces: it repairs a moved camera and hijacks a
+  second one.
+* **DHCP address-recovery is dead here [M]:** `async_step_dhcp` matches on the *real* MAC, and the
+  registry holds the pointer value instead.
 
 **What has *not* been tested:** nobody has actually performed a delete-and-re-add. The
 cross-reboot stability makes the old claim unlikely, but the direct test has not been run.
