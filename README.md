@@ -1,99 +1,134 @@
 # EYEPLUS / iCam365 ONVIF camera
 
-Notes on a cheap white-label ONVIF pan/tilt camera, running locally in Home Assistant with
-its cloud blocked. Bought and first set up **2024-09-22**; revived and documented **2026-08-05**.
+Notes on cheap white-label ONVIF pan/tilt cameras, run locally in Home Assistant with their
+cloud blocked. First set up **2024-09-22**; revived, reverse-engineered and documented across
+**2026-08-05/06**.
 
 "iCam365" is the name on the box and the app; the hardware identifies itself as **EYEPLUS**.
 
-## Verified configuration
+> 🔴 **These cameras leak their administrator password to anyone who asks, unauthenticated.**
+> VLAN isolation is the only thing protecting them. **[Read security.md first.](docs/security.md)**
 
-Confirmed against the live camera on 2026-08-06.
+## What works
 
 | | |
 |---|---|
-| Address | `192.168.1.21` — camera VLAN, static DHCP reservation `icam365-01` |
-| MAC | `a8:4f:a4:df:d6:3f` |
-| SSID | `iot` (2.4 GHz), bridged to the camera VLAN |
-| Main stream | `rtsp://192.168.1.21:554/0/av0` — **H.265** 1920×1080 @12 fps + PCM A-law |
-| Sub stream | `rtsp://192.168.1.21:554/0/av1` — **H.265** 640×360 @12 fps + PCM A-law |
-| ONVIF | `http://192.168.1.21/onvif/device_service` — **no authentication** |
-| Open ports | 80, 554, 8001 only. No telnet, no SSH, no snapshot server |
-| Cloud | PPPP on UDP 32100 — **blocked** at the firewall |
+| ✅ Video | RTSP, no auth — **H.265 only**, 1080p main / 640×360 sub, ~12 fps + PCM A-law |
+| ✅ Snapshots | [`:8001/snapshot`](docs/vendor-api.md#snapshot-is-the-most-useful-thing-on-these-cameras) — 640×360 JPEG, ~70 ms, no auth. **The best thing on these cameras.** |
+| ✅ PTZ | ONVIF `ContinuousMove` and HA's `onvif.ptz` — [but testing it destroys the aim](docs/ptz.md) |
+| ✅ Local provisioning | [No cloud account needed](docs/provisioning.md) |
+| ✅ Availability monitoring | HA binary sensor + health sensor |
+| ⚠️ WiFi persistence | [A power cycle has been seen to wipe it](docs/provisioning.md#-provisioning-does-not-reliably-survive-a-power-cycle) — **unresolved, and it blocks outdoor use** |
+| ❌ Position feedback / presets / home | Not implemented. **No way to restore a framing in software.** |
+| ❌ Motion events | [Structurally impossible over ONVIF](docs/ai-and-events.md) — no pull-point subscription |
+| ❌ AI detection / auto-tracking | Exists in hardware, [reachable only over the vendor P2P channel](docs/ai-and-events.md#where-the-features-actually-live) |
+| ❌ Reboot | ONVIF `SystemReboot` is a **no-op**; only a power cycle restarts these |
+| ❌ Authentication | On anything. See [security.md](docs/security.md) |
+
+## The two cameras
+
+| | `icam365-01` | `icam365-02` |
+|---|---|---|
+| Address | `192.168.1.21` | `192.168.1.23` (reservation) |
+| ONVIF `unique_id` | `3a80ec:…:3a80f1` | `3ab284:…:3ab289` |
+| Firmware | `57.0.8.0` | `57.0.2.0` — **older** |
+| Extra open port | — | `3576`, purpose unknown |
+| Aim | untouched | ⚠️ **needs physical re-aiming** after PTZ testing |
+
+> ⚠️ **Identify these cameras by `unique_id`, never by serial or by "cam #N".**
+>
+> **Both units report the same placeholder serial** (`12345679890`), so the serial distinguishes
+> nothing.
+>
+> And the informal numbering is **inconsistent across the source notes** — the same physical
+> camera has been called "cam #2" and "cam #1" in different sessions, and the newly provisioned
+> one has been both "cam #3" and "cam #2". The `unique_id` and the HA entry name are the only
+> stable handles. This page uses those.
+
+### ❓ Open question: which camera goes outside?
+
+The source notes disagree, and it is not resolvable from them. One says the **existing** camera
+(`icam365-01`) is going up by the cars to replace a stalling unit; another says the **newly
+provisioned** one (`icam365-02`) is. They were written using the ambiguous numbering above.
+
+It matters, because two findings land differently depending on the answer:
+
+* **`icam365-02` is the one that currently needs re-aiming**, and the one whose WiFi config was
+  seen to vanish after a power cycle.
+* An outdoor camera makes both the [PTZ irreversibility](docs/ptz.md) and the
+  [provisioning-persistence blocker](docs/provisioning.md#-provisioning-does-not-reliably-survive-a-power-cycle)
+  much more expensive — a ladder, rather than a reach.
+
+**Resolve this before mounting anything.**
 
 ## Identity, such as it is
 
-Every identifying field is a placeholder, which is typical of a white-label OEM that expects
-the phone app to supply the identity:
+Every identifying field is a placeholder, which is typical of a white-label OEM that expects the
+phone app to supply identity:
 
 | Field | Value |
 |---|---|
 | Manufacturer | `EYEPLUS` |
 | Model | `EYEPLUS_DEV` (literally "dev") |
-| Firmware | `57.0.8.0` (was `57.0.2.0` in 2024) |
-| Serial | `12345679890` |
+| Serial | `12345679890` — **the same on both units** |
 | HardwareId | `88` |
 | Hostname | `localhost` |
 | ONVIF scopes | empty |
 | HTTP server | `Ginatex-HTTPServer` |
 | RTSP server | `TAS-Tech Streaming Server V100R001` |
-| API server (:8001) | `TAS-Tech IPCam` |
+| API server (`:8001`) | `TAS-Tech IPCam` |
 
-## ⚠️ Three traps
+## Quick start
 
-### ONVIF lies about the codec
+```sh
+# a frame, no credentials, no HEVC decoder needed
+curl -o frame.jpg http://192.168.1.21:8001/snapshot
 
-`GetProfiles` reports **H264** for both encoders. Both streams are actually **H.265**. Verified
-at the HLS layer, not inferred: this camera produces `CODECS="hev1.1.6.L63"` where a working
-H.264 camera on the same system produces `avc1.4d0029`.
+# the streams (H.265)
+ffprobe -rtsp_transport tcp rtsp://192.168.1.21:554/0/av0    # main  1920x1080
+ffprobe -rtsp_transport tcp rtsp://192.168.1.21:554/0/av1    # sub    640x360
+```
 
-This matters because Chrome and Firefox on Linux have **no HEVC decoder**, so a Home Assistant
-`picture-entity` card with `camera_view: "live"` renders a black tile. Use `camera_view: "auto"`,
-which routes through `/api/camera_proxy` and is decoded server-side by ffmpeg. Getting the 1080p
-stream into a Linux browser at all requires go2rtc **transcoding**, which costs real CPU per
-viewer on the HA host.
+> ⚠️ **Do not port-scan these to discover them.** `nmap` sweeps are
+> [demonstrably unreliable here](docs/vendor-api.md#-nmap-is-unreliable-against-these-cameras) —
+> one full sweep missed ports 80 and 554 while they were actively in use. Probe named ports and
+> confirm by connecting.
 
-### It reports a fake MAC that changes between ONVIF additions
+## Two habits this project keeps
 
-Its ONVIF `unique_id` was `3ab284:3ab285:3ab286:3ab287:3ab288:3ab289` in 2024 and
-`3a80ec:3a80ed:3a80ee:3a80ef:3a80f0:3a80f1` in 2026. Six *sequential six-character* values —
-a MAC is six groups of **two**. It is a pointer formatted to look like a MAC.
+**1. A `200` means "request parsed", not "request honoured."** `/setwifi` returned 200 for a
+setting that did not persist; `/ptzctrl?act=99` returns 200 for an invalid action code;
+`SystemReboot` returns a cheerful message and does not reboot. **Verify effects independently** —
+PTZ was only believed after measuring image change against a noise floor, not after an HTTP 200.
 
-Consequence: re-adding the camera to Home Assistant does **not** match the old `unique_id`, so
-you get **new entity IDs** and the old ones are gone permanently. Grep your dashboards and
-packages for references before deleting a config entry.
+**2. Every self-report on this device is wrong about something.** ONVIF is right about the
+resolution and wrong about the codec; the SDP is right about the codec and wrong about the
+resolution. **Cross-check each field on its own.**
 
-### The ONVIF integration cannot be reconfigured in place
+## Documentation
 
-`supports_reconfigure` is `false` for `onvif` on HA 2026.7.4 (verified, not assumed). The host
-lives in the config entry's `data`, which the options flow cannot reach, and hand-editing
-`.storage` on a running HA is silently overwritten by the in-memory cache. To move it to a new
-address you must **delete and re-add** — which triggers the entity-ID problem above.
-
-## Home Assistant
-
-Entities (from the ONVIF integration):
-
-- `camera.icam365_01_mainstream` — 1080p H.265
-- `camera.icam365_01_substream` — 640×360 H.265, **this is the one on the dashboard**
-- `button.icam365_01_reboot`, `button.icam365_01_set_system_date_and_time`
-- `switch.icam365_01_autofocus`, `switch.icam365_01_ir_lamp`, `switch.icam365_01_wiper`
-
-The dashboard card deliberately uses the **substream** with `camera_view: "auto"` — server-side
-transcode is cheaper at 640×360, and it is a thumbnail. A markdown card sits beside it on the
-board explaining this so nobody "fixes" it back to `live`.
-
-## Cloud posture
-
-Before being blocked it held live PPPP sessions on **UDP 32100** to Amazon, Tencent and Oracle
-endpoints. The camera VLAN is now **default-deny to WAN** (the `cameras → wan` forwarding was
-removed on the router), with DNS, DHCP and NTP to the router still permitted.
-
-Local ONVIF and RTSP are unaffected. Anything that depended on the vendor cloud will not work,
-which is the intended trade.
+| | |
+|---|---|
+| [docs/security.md](docs/security.md) | 🔴 **Read first** — unauthenticated credential disclosure |
+| [docs/onvif.md](docs/onvif.md) | ONVIF support matrix, and everything it misreports |
+| [docs/vendor-api.md](docs/vendor-api.md) | `:8001`, the port map, and why nmap lies here |
+| [docs/ptz.md](docs/ptz.md) | PTZ — and why testing it permanently changes the aim |
+| [docs/provisioning.md](docs/provisioning.md) | Local pairing with no cloud account, and the persistence blocker |
+| [docs/ai-and-events.md](docs/ai-and-events.md) | Why there are no motion sensors, and the vendor feature map |
+| [docs/home-assistant.md](docs/home-assistant.md) | HA integration, entities, live view, and the traps |
+| [notes/](notes/) | Session logs, kept as history — **prefer `docs/` for current facts** |
 
 ## Related
 
-- [`anyka3918-gc1084-camera`](../anyka3918-gc1084-camera/) — the other hacked camera on this
+* [`anyka3918-gc1084-camera`](../anyka3918-gc1084-camera/) — the other hacked camera on this
   VLAN, with a full HTTP API reference
-- [`ilnk-e27-bulb-camera`](../ilnk-e27-bulb-camera/) — an iLnkP2P bulb camera, same cloud
-  protocol family (PPPP), provisioned locally without the vendor app
+* [`ilnk-e27-bulb-camera`](../ilnk-e27-bulb-camera/) — a P2P bulb camera. **Different vendor and
+  stack** — do not assume these share a cloud protocol just because both use UDP 32100; that
+  conflation has already cost time once.
+
+## A note on addresses
+
+Addresses, SSIDs, MACs and device UIDs throughout this repo are **generic stand-ins**. The
+structure and the findings are real; only the identifiers are substituted, so the repo can be
+published without further work. **Credentials are never recorded here at all**, including the
+one the cameras leak.
