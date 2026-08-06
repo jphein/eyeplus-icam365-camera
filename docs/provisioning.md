@@ -74,6 +74,16 @@ at pairing time altogether.
 
 **Documented as pending. Do not read the result into anything until it has been run.**
 
+> ⚠️ **Scope the window to `icam365-02` only** — never the whole camera VLAN, and never
+> `icam365-01`. The production unit must not be power-cycle tested either; see the
+> [operational rules](../README.md#-operational-rules--icam365-01-is-production).
+
+**Suggestive, but not a measurement:** `icam365-01` was paired in 2024 through the phone app
+**with cloud access**, and has survived power cuts since. `icam365-02` was paired locally with no
+cloud bind and lost its config on the first one. That is a natural experiment pointing the same
+way as the hypothesis above — and it stays **inferred**, because confirming it would mean
+power-cycling the production camera to find out.
+
 ## ⚠️ A `200` does not mean it worked
 
 `/setwifi` returned `200 OK` for a configuration that **did not persist**. Separately,

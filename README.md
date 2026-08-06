@@ -56,10 +56,13 @@ change against a noise floor; provisioning was only disbelieved after a power cy
 | | `icam365-01` | `icam365-02` |
 |---|---|---|
 | Address | `192.168.1.21` | `192.168.1.23` (reservation) |
+| MAC | `AA:BB:CC:DD:EE:01` | `AA:BB:CC:DD:EE:02` |
 | ONVIF `unique_id` | `3a80ec:…:3a80f1` | `3ab284:…:3ab289` |
 | Firmware | `57.0.8.0` | `57.0.2.0` — **older** |
+| Paired | 2024, **phone app, with cloud access** | today, **local `/setwifi`, `userid:"0"`** |
+| **Role** | 🔴 **production — going outside, by the cars** | 🧪 **lab — expendable** |
 | Extra open port | — | `3576`, purpose unknown |
-| Aim | untouched | ⚠️ **needs physical re-aiming** after PTZ testing |
+| Aim | untouched, **keep it that way** | ⚠️ needs physical re-aiming after PTZ testing |
 
 > ⚠️ **Identify these cameras by `unique_id`, never by serial or by "cam #N".**
 >
@@ -71,21 +74,39 @@ change against a noise floor; provisioning was only disbelieved after a power cy
 > one has been both "cam #3" and "cam #2". The `unique_id` and the HA entry name are the only
 > stable handles. This page uses those.
 
-### ❓ Open question: which camera goes outside?
+### 🔴 Operational rules — `icam365-01` is production
 
-The source notes disagree, and it is not resolvable from them. One says the **existing** camera
-(`icam365-01`) is going up by the cars to replace a stalling unit; another says the **newly
-provisioned** one (`icam365-02`) is. They were written using the ambiguous numbering above.
+**`icam365-01` is the camera going outside, up by the cars.** `icam365-02` is the lab unit.
+That division was ambiguous in the source notes and has been settled explicitly, because it
+decides which unit the destructive findings apply to.
 
-It matters, because two findings land differently depending on the answer:
+Three rules follow, and a future reader will otherwise violate all of them:
 
-* **`icam365-02` is the one that currently needs re-aiming**, and the one whose WiFi config was
-  seen to vanish after a power cycle.
-* An outdoor camera makes both the [PTZ irreversibility](docs/ptz.md) and the
-  [provisioning-persistence blocker](docs/provisioning.md#-provisioning-does-not-survive-a-power-cycle)
-  much more expensive — a ladder, rather than a reach.
+* **No PTZ commands to `icam365-01`.** The aim is [irreversible](docs/ptz.md) and the camera
+  will be up a ladder.
+* **No power-cycle testing on `icam365-01`.**
+* **Any WAN pairing window is scoped to `icam365-02`'s address only** — never the whole camera
+  VLAN, and never `icam365-01`.
 
-**Resolve this before mounting anything.**
+Do destructive work on `icam365-02`. That is what it is for.
+
+#### The choice rests on a natural experiment — and it is inferred, not measured
+
+`icam365-01` was paired in 2024 **via the phone app, with cloud access**, and has survived power
+cuts ever since. `icam365-02` was paired **locally with no cloud bind**, and lost its WiFi
+config on [a single clean power cycle](docs/provisioning.md#-provisioning-does-not-survive-a-power-cycle).
+
+That is real support for the hypothesis that **credentials only commit to flash once a cloud
+bind completes** — and if it holds, the constraint changes shape usefully:
+
+> Not *"these cameras cannot work on an isolated VLAN"*, but **"they need one supervised cloud
+> pairing, once, before isolation."** Much more tolerable — and exactly what the
+> [capture work](docs/provisioning.md#pending-a-scoped-wan-window-to-test-it) aims to remove.
+
+> ⚠️ **This is inferred, not measured.** Nobody is going to power-cycle `icam365-01` to confirm
+> it — if it turned out non-durable, we would have broken the production camera to learn that.
+> The 2024 history is good enough to act on and is **not** a measurement. The destructive
+> version of that test belongs on `icam365-02`.
 
 ## Identity, such as it is
 

@@ -12,8 +12,11 @@ PTZ works. It does **not** work the way ONVIF clients expect, and testing it is 
 > steps are not calibrated.
 >
 > **Before testing PTZ on a camera that is aimed at something on purpose, don't.** Test on one
-> whose framing does not matter yet. This matters most for an outdoor camera, where re-aiming
-> means going outside with a ladder.
+> whose framing does not matter yet.
+>
+> **Concretely, in this setup: never send PTZ to `icam365-01`.** It is the production unit going
+> outside by the cars, where re-aiming means a ladder. `icam365-02` is the lab camera — do
+> destructive work there.
 
 ## What works
 
