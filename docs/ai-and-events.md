@@ -57,20 +57,56 @@ This table is worth keeping regardless of whether anything is built on it: it is
 list of what the hardware can do, and it says plainly that the camera supports far more than its
 ONVIF surface admits.
 
-## The P2P channel
+## The P2P channel — a local session works with the cloud firewalled
 
-The cameras **do answer a P2P LAN-search probe locally** and report a `TANGE-…` UID, so a local
-client is conceivable rather than fantasy. [M]
+**This is the significant result.** A live P2P session has been established against the camera
+**with `cameras → wan` denied**, i.e. entirely on the LAN, with no vendor cloud involved. [M]
 
-But: the P2P socket sits on an **ephemeral port that rotates every few seconds** (observed to
-move between sweeps and again between a sweep and a client start), which makes a stable client
-hard to write. **[I]** the churn is probably the camera restarting its blocked cloud connection
-in a loop.
+The handshake that works:
 
-**This is a real reverse-engineering project, not a configuration task.** Port 6670 — which
-[speaks a length-prefixed binary protocol with large or magic command ids](vendor-api.md#port-6670--partially-reverse-engineered) —
-is the most promising unturned stone, and the command numbers above (814, 32800, …) are
-consistent with the "ids are large" finding there.
+```
+LanSearch          ->  device replies, UID TANGE-…
+PunchPkt           ->  accepted
+P2pRdy             ->  accepted
+Drw ConnectUser    ->  acked        (0x2010, credentials recovered via GetUsers)
+Drw DevStatus      ->  acked
+P2PAlive           ->  keepalives flowing
+```
+
+### The ephemeral-port problem, and its solution
+
+The camera's P2P socket sits on an **ephemeral port that rotates every few seconds** — observed
+to move between sweeps, and again between a sweep and a client start. **[I]** the churn is
+probably the camera restarting its blocked cloud connection in a loop.
+
+That rotation is what makes this device look intractable: by the time you have scanned for the
+port, it has moved.
+
+> **The fix is to stop treating discovery and connection as separate steps.** Do discovery and
+> the handshake **on one socket, in one continuous flow**, and take the port from the **source
+> address of the device's own reply** rather than from a scan. The port never has a chance to
+> rotate, because you never go back and look for it.
+
+### Where it stops
+
+**Session layer works; control layer does not.** Frames are acked and keepalives flow, but **no
+`Drw` payload ever comes back** — so the camera accepts the transport and answers nothing at the
+application layer.
+
+> ⚠️ **`DrwAck` means "frame accepted", not "command understood".** This is
+> [the same trap as the HTTP 200s](../README.md#the-one-thing-to-know), one layer down. An acked
+> frame is not evidence the command was valid, parsed, or acted on.
+
+**[I]** the grounded inference is that the inner IOCTRL framing is **TUTK AVAPI `IOTYPE_*`**
+rather than the iLnk scheme used by public cam-reverse tooling — note that `0x8020` has the
+**high bit set**, which is characteristic of the AVAPI numbering rather than a plain sequential
+command id.
+
+**This is a real reverse-engineering project, not a configuration task** — but it is no longer
+blocked on the thing that looked like a wall. Port 6670, which
+[speaks a length-prefixed binary protocol with large or magic command ids](vendor-api.md#port-6670--partially-reverse-engineered),
+remains a parallel unturned stone; the command numbers above (814, 32800, …) are consistent with
+its "ids are large" finding.
 
 ## What to do about driveway motion instead
 

@@ -9,6 +9,32 @@ cloud blocked. First set up **2024-09-22**; revived, reverse-engineered and docu
 > 🔴 **These cameras leak their administrator password to anyone who asks, unauthenticated.**
 > VLAN isolation is the only thing protecting them. **[Read security.md first.](docs/security.md)**
 
+## The one thing to know
+
+> ### On this firmware family a `200` means "request parsed", not "request honoured."
+>
+> **Nothing this device says about itself can be trusted without independent verification.**
+
+Five independent confirmations, all measured:
+
+| What it said | What was true |
+|---|---|
+| `POST /setwifi` → `200 OK` | Config **lost at the next power cycle** — the camera returned to AP mode |
+| `SystemReboot` → `Rebooting in 90 seconds` | **Never rebooted.** Served snapshots for 5.5 min; DHCP lease timestamp unchanged |
+| `/ptzctrl?act=99` → `200 OK` | `99` is **not a valid action code** |
+| ONVIF `GetProfiles` → `H264` | Both streams are **H.265** (`ffprobe`, and the SDP says `H265/90000`) |
+| SDP → `framesize 1280-720` | `ffprobe` measures **1920×1080** |
+
+Note the last two disagree *with each other* as well as with reality — ONVIF is right about the
+resolution and wrong about the codec, the SDP the other way round. **There is no single field you
+can trust by association with another.**
+
+The rule extends past HTTP. At the P2P layer, **`DrwAck` means "frame accepted", not "command
+understood"** — see [ai-and-events.md](docs/ai-and-events.md#the-p2p-channel--a-local-session-works-with-the-cloud-firewalled).
+
+**Practically:** verify effects, never statuses. PTZ was only believed after measuring image
+change against a noise floor; provisioning was only disbelieved after a power cycle.
+
 ## What works
 
 | | |
@@ -18,7 +44,7 @@ cloud blocked. First set up **2024-09-22**; revived, reverse-engineered and docu
 | ✅ PTZ | ONVIF `ContinuousMove` and HA's `onvif.ptz` — [but testing it destroys the aim](docs/ptz.md) |
 | ✅ Local provisioning | [No cloud account needed](docs/provisioning.md) |
 | ✅ Availability monitoring | HA binary sensor + health sensor |
-| ⚠️ WiFi persistence | [A power cycle has been seen to wipe it](docs/provisioning.md#-provisioning-does-not-reliably-survive-a-power-cycle) — **unresolved, and it blocks outdoor use** |
+| 🔴 WiFi persistence | **A single clean power cycle wipes it** — confirmed. [Blocks outdoor use](docs/provisioning.md#-provisioning-does-not-survive-a-power-cycle) until the pending WAN-window test resolves the cause |
 | ❌ Position feedback / presets / home | Not implemented. **No way to restore a framing in software.** |
 | ❌ Motion events | [Structurally impossible over ONVIF](docs/ai-and-events.md) — no pull-point subscription |
 | ❌ AI detection / auto-tracking | Exists in hardware, [reachable only over the vendor P2P channel](docs/ai-and-events.md#where-the-features-actually-live) |
@@ -56,7 +82,7 @@ It matters, because two findings land differently depending on the answer:
 * **`icam365-02` is the one that currently needs re-aiming**, and the one whose WiFi config was
   seen to vanish after a power cycle.
 * An outdoor camera makes both the [PTZ irreversibility](docs/ptz.md) and the
-  [provisioning-persistence blocker](docs/provisioning.md#-provisioning-does-not-reliably-survive-a-power-cycle)
+  [provisioning-persistence blocker](docs/provisioning.md#-provisioning-does-not-survive-a-power-cycle)
   much more expensive — a ladder, rather than a reach.
 
 **Resolve this before mounting anything.**
@@ -94,17 +120,6 @@ ffprobe -rtsp_transport tcp rtsp://192.168.1.21:554/0/av1    # sub    640x360
 > one full sweep missed ports 80 and 554 while they were actively in use. Probe named ports and
 > confirm by connecting.
 
-## Two habits this project keeps
-
-**1. A `200` means "request parsed", not "request honoured."** `/setwifi` returned 200 for a
-setting that did not persist; `/ptzctrl?act=99` returns 200 for an invalid action code;
-`SystemReboot` returns a cheerful message and does not reboot. **Verify effects independently** —
-PTZ was only believed after measuring image change against a noise floor, not after an HTTP 200.
-
-**2. Every self-report on this device is wrong about something.** ONVIF is right about the
-resolution and wrong about the codec; the SDP is right about the codec and wrong about the
-resolution. **Cross-check each field on its own.**
-
 ## Documentation
 
 | | |
@@ -122,9 +137,10 @@ resolution. **Cross-check each field on its own.**
 
 * [`anyka3918-gc1084-camera`](../anyka3918-gc1084-camera/) — the other hacked camera on this
   VLAN, with a full HTTP API reference
-* [`ilnk-e27-bulb-camera`](../ilnk-e27-bulb-camera/) — a P2P bulb camera. **Different vendor and
-  stack** — do not assume these share a cloud protocol just because both use UDP 32100; that
-  conflation has already cost time once.
+* [`ilnk-e27-bulb-camera`](../ilnk-e27-bulb-camera/) — a P2P bulb camera, and **a genuinely
+  different device**: Beken silicon running RT-Thread and **iLnkP2P**, where these are
+  **Tange/ThroughTek running TUTK**. Do not assume they share a protocol because both use UDP
+  32100 — that conflation has already cost this project time twice.
 
 ## A note on addresses
 

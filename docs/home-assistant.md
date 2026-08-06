@@ -133,21 +133,34 @@ recognising — but it is stable, which is the part that matters.
 Related: the config entry's own `unique_id` is `None`, and entity unique_ids are
 `<pseudo-MAC>_<suffix>`.
 
-### ⚠️ Declaring `script:` in a package silently kills the entire package
+### ⚠️ A package can be silently ignored in its entirety — cause unknown
 
-**Found the hard way, and it logs nothing.** [M]
+**The symptom is real, nasty, and worth being able to recognise. The cause is not known.**
 
-If `configuration.yaml` already owns `script:` via `!include scripts.yaml`, a package that also
-declares `script:` causes HA to **silently skip the whole file** — not just the scripts, but
-every other key in it too (`rest_command:`, `command_line:`, …).
-
-**`check_config` still returns `{"result":"valid"}`.**
+Observed: a package file was **deployed to the correct path, md5-verified intact, parsed with
+the expected keys**, `check_config` returned `{"result":"valid"}`, **nothing was logged at any
+level** — and **not one entity from any domain in that file existed.** Not just the scripts:
+`rest_command:` and `command_line:` were missing too.
 
 > **Symptom to recognise:** package deployed, config valid, no errors anywhere, and *none* of its
-> entities exist.
+> entities exist. Do not go looking for a YAML error; there isn't one.
 
-**Fix:** do not declare `script:` in a package on this system. Call `rest_command.*` directly
-from dashboard buttons instead.
+> ⚠️ **A cause was proposed here and has been retracted.** This section previously stated that
+> declaring a top-level `script:` in a package conflicts with `configuration.yaml`'s
+> `script: !include scripts.yaml` and causes HA to skip the file. **That is refuted** — another
+> package on the same system declares a top-level `script:` and loads fine alongside exactly that
+> include.
+>
+> The failing package had some *other* defect, and **the mechanism is undetermined**. The
+> decisive experiment — re-add the block and bisect — has not been run.
+>
+> It is recorded as unexplained on purpose: **a plausible-but-wrong cause is worse than none**,
+> because it sends the next person down a confident wrong path. This project has already lost
+> hours to exactly that.
+
+**Practical response while the cause is unknown:** if a package vanishes this way, bisect it —
+halve the file, redeploy, see which half disappears. That finds the offending key without needing
+a theory about why.
 
 > **Diagnostic note:** `states('nonexistent.entity')` returns `unknown` — exactly like a real
 > sensor that has not run yet. So "is it `unknown`?" **cannot** tell you whether an entity

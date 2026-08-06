@@ -64,7 +64,7 @@ work, which is the intended trade.
 > devices; the other P2P camera in this project is a different vendor and stack. The two should
 > not be assumed to share a protocol just because both use UDP 32100 — that conflation has
 > already cost time once. What *is* measured: these cameras answer a P2P LAN-search probe
-> locally and report a `TANGE-…` UID. See [ai-and-events.md](ai-and-events.md#the-p2p-channel).
+> locally and report a `TANGE-…` UID. See [ai-and-events.md](ai-and-events.md#the-p2p-channel--a-local-session-works-with-the-cloud-firewalled).
 
 ## See also
 
