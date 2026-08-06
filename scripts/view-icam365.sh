@@ -31,7 +31,13 @@ main|sub)
     # hwdec off explicitly: probing vaapi is a dead end wherever the GPU
     # predates HEVC, and the failed probe spams the terminal ("init failed",
     # "No support for codec hevc profile 1") before falling back anyway.
-    exec mpv --profile=low-latency --no-audio --rtsp-transport=tcp \
+    # After the low-latency profile, undo two of its choices that hurt here:
+    # it forces vd-lavc-threads=1, which a weak CPU needs multi-threaded for
+    # 1080p HEVC, and the camera sends no PTS, so mpv would pace the ~12 fps
+    # stream against a made-up 25 fps clock — --untimed shows frames as they
+    # arrive instead, which is the right behaviour for a live monitor.
+    exec mpv --profile=low-latency --vd-lavc-threads=0 --untimed \
+         --no-audio --rtsp-transport=tcp \
          --hwdec=no --gpu-hwdec-interop=no \
          --title="icam365 $IP $MODE" "rtsp://$IP:554/0/$AV"
     ;;
