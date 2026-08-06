@@ -15,11 +15,12 @@ cloud blocked. First set up **2024-09-22**; revived, reverse-engineered and docu
 >
 > **Nothing this device says about itself can be trusted without independent verification.**
 
-Five independent confirmations, all measured:
+Six independent confirmations, all measured:
 
 | What it said | What was true |
 |---|---|
 | `POST /setwifi` → `200 OK` | Config **lost at the next power cycle** — the camera returned to AP mode |
+| `POST /setwifi` → `200 OK` **to a camera already on WiFi** | **Nothing happened at all** — no reboot, no re-association, still on the old network minutes later. [The same request is honoured in AP mode and ignored in station mode.](docs/provisioning.md#-setwifi-means-different-things-in-ap-mode-and-station-mode) |
 | `SystemReboot` → `Rebooting in 90 seconds` | **Never rebooted.** Served snapshots for 5.5 min; DHCP lease timestamp unchanged |
 | `/ptzctrl?act=99` → `200 OK` | `99` is **not a valid action code** |
 | ONVIF `GetProfiles` → `H264` | Both streams are **H.265** (`ffprobe`, and the SDP says `H265/90000`) |

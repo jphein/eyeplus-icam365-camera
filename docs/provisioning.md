@@ -211,6 +211,76 @@ with a dead host. It was found in a packet capture, not by re-reading the config
 **Verify a revert behaviourally: resolve the name and look at the answer.** A grep for what you
 believe you deleted will agree with you.
 
+## 🔴 `/setwifi` cannot be called without the binding fields
+
+Found while trying to change a camera's SSID **without** disturbing its cloud binding. Four
+payload variants, measured against the lab camera: [M]
+
+| payload | result |
+|---|---|
+| `{ssid, key}` | **400 Bad Request** (×3, consistent) |
+| `{ssid, key, userid}` | **400 Bad Request** |
+| `{ssid, key, bind_token}` | **400 Bad Request** |
+| `{ssid, key, userid, bind_token}` | **200 OK** |
+
+**Both `userid` and `bind_token` are mandatory.** There is no minimal form.
+
+> ⚠️ **So any SSID change necessarily sends `userid:"0"` — "no account owns this device" — plus a
+> freshly minted `bind_token`, over whatever binding the camera currently holds.**
+>
+> On a camera whose durability depends on a completed app pairing, that is the single most
+> plausible way to destroy the property you are relying on. And **it is not rehearsable**: a
+> locally-provisioned lab unit has no binding to lose, so testing there proves nothing about a
+> properly-paired one.
+
+**There is no alternative route.** ONVIF `GetDot11Capabilities` and `GetDot11Status` are both
+`ter:ActionNotSupported`, so the ONVIF wireless-configuration path does not exist on this
+firmware. `:20202/setwifi` is the only mechanism. [M]
+
+## ⚠️ `/setwifi` means different things in AP mode and station mode
+
+The same request, accepted with the same `200 OK`, does two entirely different things:
+
+| mode | behaviour |
+|---|---|
+| **AP mode** (camera unconfigured, serving its own SSID) | accepted, and the camera **reboots itself** into station mode. **This self-reboot is the only reason `/setwifi` appears to "just work".** |
+| **station mode** (camera already on WiFi) | accepted with `200`, and **nothing observable happens** — no reboot, no re-association, still on the old network minutes later [M] |
+
+**[I]** the setting is written to flash and read only at boot; the camera's flash cannot be read
+to confirm.
+
+> **Consequence: an already-networked camera cannot be moved to a different SSID without a
+> reboot — and [the only reboot on this firmware is a power cycle](#-a-200-does-not-mean-it-worked).**
+
+### Why that combination is disqualifying for a production camera
+
+Stack the three findings and the operation becomes one you should not attempt at all:
+
+1. the SSID change **must** send `userid:"0"` over the existing binding;
+2. applying it **requires a power cycle**;
+3. **the power cycle is also the only test of whether the binding survived.**
+
+> **The test and the risk are the same action, with no way to back out.** And the failure is
+> delayed and silent — a camera that looks healthy for weeks and then reverts to AP mode on some
+> later power cut, presenting as dead hardware, from a ladder.
+
+**This is a different situation from "do it carefully".** Every other hazard on these cameras can
+be rehearsed on an expendable unit first. This one cannot, because the expendable unit lacks the
+very thing being risked.
+
+> ✅ **The safe way to move a bound camera to a new SSID is to re-pair it with the phone app on
+> the new network** — a supervised, internet-connected pairing *replaces* the binding rather than
+> blanking it. Otherwise, leave the old SSID broadcasting and leave the camera on it.
+
+### 💣 A latent surprise worth knowing about
+
+A camera that received a station-mode `/setwifi` for a different SSID is holding an **unapplied
+network change**. It runs indefinitely on the old network — and then joins the *new* one the
+next time it is power-cycled, possibly months later.
+
+**If a camera comes back on an unexpected SSID after a power cut, check whether someone sent it a
+`/setwifi` that never appeared to do anything.** It is not a fault.
+
 ## ⚠️ A `200` does not mean it worked
 
 `/setwifi` returned `200 OK` for a configuration that **did not persist**. Separately,
