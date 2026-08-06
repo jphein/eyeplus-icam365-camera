@@ -459,10 +459,38 @@ units, and why this project had to find `:8001` by hand.
 | | | |
 |---|---|---|
 | Brightness / contrast / saturation / exposure / focus / white balance | ❌ **no imaging control at all.** `GetImagingSettings` and `SetImagingSettings` are **HTTP 400 — absent**, despite the Imaging service being advertised with its own XAddr | **[M]** |
-| IR-cut filter | ✅ hardware present, **`tIcrCtrlThread` runs**; ❌ no control surface | **[M]** |
+| IR-cut filter | ✅ hardware present, **`tIcrCtrlThread` runs**; ❌ no ONVIF control — ✅ **but see below: it IS controllable over the vendor channel** | **[M]** |
 | IR LEDs | ✅ hardware present; ❌ no auxiliary command, no imaging extension | **[M]** |
-| Day/night switching | observed to work automatically; ❌ not controllable | **[I]** |
+| Day/night switching | ✅ **controllable — measured** (vendor channel, below) | **[M]** |
 | OSD / text overlay | ❌ `GetOSDs`, `SetOSD`, `CreateOSD`, `DeleteOSD` all decline | **[M]** |
+
+> ### ✅ SOLVED 2026-08-06 — day/night IS controllable, over the vendor channel
+>
+> **The first capability this project has *restored* rather than documented as absent.** [M]
+>
+> ONVIF cannot do it — `Get/SetImagingSettings` are HTTP 400, the Imaging service is empty. The
+> **authenticated PPCS control channel** can:
+>
+> | | |
+> |---|---|
+> | Command | `SET_DAYNIGHT` **32792**, mode in the request at word[1] |
+> | Response | `32793`, and `GET_DAYNIGHT` **32790** reports the mode at **word[2]** |
+> | Mode `0` | colour / day — saturation ≈ **50.8** |
+> | Mode `1` | accepted and round-trips, **no visible change in daylight** — consistent with a "force day" interlock, **[I]**, untested |
+> | Mode `2` | **night — IR-cut removed, saturation `0.000`, R = G = B exactly** |
+> | Mode `3` | rejected: acked, but `GET` still reports `2`. Not a valid mode |
+>
+> **`|dsat| = 50.83` against an idle floor of 0.46 — a ~110× margin.** Restored to mode `0` and the
+> **restore verified by image comparison, not by re-reading state**, then independently
+> re-measured from a second host: RGB spread 5.37, saturation 51.4. No magenta.
+>
+> ⚠️ **Note the request and response layouts differ** — the mode is written at offset 4 and
+> reported at offset 8. A field meaning taken from a single plausible-looking read would have been
+> wrong; it was settled by watching which word moved under a `SET`.
+>
+> 🔑 **And the instrument mattered more than the command.** The earlier ONVIF-lane IR sweep used a
+> **greyscale** metric — and the entire effect here *is the loss of colour*. **That instrument
+> could not have detected this even if pointed straight at it.** Saturation was the right measure.
 
 ⚠️ **The IR-LED negative is weak by its own author's admission** — the sweep ran in daylight, and
 firmwares commonly refuse to light an IR lamp while the ambient sensor reads "day". A post-dusk
