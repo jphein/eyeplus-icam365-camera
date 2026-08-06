@@ -3,6 +3,30 @@
 > 🔴 **These cameras have no authentication worth the name. VLAN isolation is the only control
 > protecting them, and it is load-bearing.**
 
+## 🔴 Port 6670 is an unauthenticated debug console
+
+**This outranks the credential disclosure in kind.** A leaked password exposes *data*; an open
+diagnostic console exposes the *machine*. **Measured 2026-08-06. [M]**
+
+No authentication, no challenge, nothing. Frame it as `[u32 BE total length][u32 BE command id]`
+plus **at least four payload bytes** (a header-only message is answered with a TCP reset — which
+is why an earlier sweep concluded the whole command range was dead):
+
+| command | what it returns |
+|---|---|
+| `id=2` | the **full task table** — every thread name in the firmware |
+| `id=3` | **semaphore dump, including live kernel addresses** |
+| `id=5` | `redirectionOutput` — a console-output redirect |
+| `id=6`–`14` | recognised; return empty pending arguments |
+
+**Anything that can open a TCP connection to the camera VLAN can read the device's internal
+state.** VLAN isolation remains the only control, exactly as for the credential leak, and this is
+a second independent reason the isolation is load-bearing rather than belt-and-braces.
+
+⚠️ **`id=5` is not to be actuated casually.** If an output redirect can be made to succeed it
+plausibly yields an interactive console on a device otherwise documented as having no shell —
+which is a capability, and a liability, on an unauthenticated port.
+
 ## Unauthenticated credential disclosure
 
 **A single unauthenticated ONVIF request returns the administrator password in cleartext.**

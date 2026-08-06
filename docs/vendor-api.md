@@ -66,19 +66,57 @@ bucket on this hardware** — and never conclude a port is closed from a sweep a
 
 ## Port 6670 — partially reverse-engineered
 
-> ### ⚠️ RETRACTED to unproven 2026-08-06: the framing below may be **backwards**
+> ### 🔴 `:6670` IS AN UNAUTHENTICATED DEBUG CONSOLE. The sweep below was wrong.
 >
-> Decompiling the vendor app (`com.tange365.icam365` 3.46.1) shows its control framing is
-> **`[uint32 LE ioType][uint32 LE payloadLen][payload]`** — the same eight bytes, **reversed and
-> little-endian**. **[R-app]**
+> **Measured 2026-08-06. The endianness retraction that briefly sat here is LIFTED** — big-endian
+> was right all along, confirmed by five matching echoes (ids 1, 300, 814, 4096, 32800); LE-framed
+> probes get a TCP reset. The real defect was simpler and worse:
 >
-> **[I] If 6670 shares that framing, the 0–599 sweep below tested nothing**: it would have been
-> writing each candidate id into the *length* field, which produces exactly the observed "no id
-> is ever valid". A conclusion of *"the real ids are large or magic"* and a conclusion of *"we
-> were parsing the header the wrong way round"* are indistinguishable from the outside.
+> | packet | result |
+> |---|---|
+> | `00000008 00000001` — header only | **TCP RST, no reply** |
+> | `0000000c 00000001 00000000` — **+4 payload bytes** | ✅ `unknown comd 1.` |
 >
-> **Not deleted, because it has not been re-measured** — a retest with `[LE id][LE len]` is
-> queued on the lab unit. Treat "6670 is a dead end" as **unproven**, not as established.
+> **A message with no payload is answered with a reset.** The original sweep sent header-only
+> frames, got RST for every id, and concluded the whole range was invalid.
+>
+> ### ❌ RETRACTED: "command ids 0–599 were swept and none is valid"
+>
+> **False. [M]** `id=2` dumps the **task table**, `id=3` dumps **semaphores with live kernel
+> addresses**, `id=5` is **`redirectionOutput`**. Ids **6–14** return an empty reply with a clean
+> EOF — a *third* response class, meaning recognised-but-needs-arguments. All of these sit inside
+> the range recorded as swept.
+>
+> 🔴 **This is a diagnostic surface, not a data leak, and it outranks the credential disclosure in
+> kind** — see [security.md](security.md). No authentication on any of it.
+>
+> **The task table is the most informative thing found on these cameras:**
+>
+> ```
+> twd  tReboot  tNetIfDeamon  ctp  sddetectTask  tStatusCtrl
+> tIcrCtrlThread  tMotDet  tSpeaker  tCmdServer
+> thttp_thread  tONVIF_Initiate  tDhcp          (all pid=298)
+> ```
+>
+> | thread | what it settles |
+> |---|---|
+> | **`tIcrCtrlThread`** | ICR = IR-Cut Removable. **IR-cut control exists and is driven internally.** The correct wording is *"the mechanism exists and is unreachable"*, never *"it does not exist"*. |
+> | **`tSpeaker`** | A speaker thread runs. Corroborates the [physical inspection](../README.md#hardware-confirmed-by-looking-at-it). |
+> | **`sddetectTask`** | SD support is in the firmware, despite ONVIF storage ops being unsupported. |
+> | **`tReboot`** | A reboot task exists although ONVIF `SystemReboot` is a measured no-op — a **wiring gap in the ONVIF handler**, not an absent capability. |
+> | **`twd`** | A watchdog, supporting the crash-plus-watchdog reading of the `:8001` overload incident. |
+>
+> ⚠️ **`tXxx` naming with every thread on one pid is VxWorks idiom**, and `redirectionOutput` is a
+> VxWorks shell primitive. **[I]** these may not be Linux at all — which would invalidate any
+> Linux-shaped rooting plan. **Unresolved; do not build on either reading yet.**
+>
+> ### The lesson that cost four months
+>
+> The original note said the id was *"checked against three different payloads"* — and **recorded
+> no values.** A later attempt to re-adjudicate the framing from the record found the conclusion
+> preserved and the evidence discarded, so the question could not be settled without going back to
+> the hardware. **Three numbers would have cost nine characters.** Where a claim rests on a
+> comparison, write down what was compared.
 
 Framing was recorded as:
 
@@ -90,8 +128,12 @@ It replies `unknown comd <id>` for ids it does not recognise, which confirmed th
 the first 4 payload bytes read as a big-endian integer — checked against three different
 payloads.
 
-**Command ids 0–599 were swept and none is valid**, so the real ids are large or magic. Nothing
-further was extracted.
+❌ **This paragraph is retracted — see the box above.** It used to read *"command ids 0–599 were
+swept and none is valid, so the real ids are large or magic."* The ids were fine; the probe was
+sending header-only frames, which this server answers with a TCP reset. Ids 2, 3 and 5 are live
+and 6–14 are recognised. **Retained rather than deleted, because the reasoning it produced —
+"the real ids must be large or magic" — is a good example of a sound inference from a broken
+measurement.**
 
 This is the most likely home of the vendor's real feature set — see
 [ai-and-events.md](ai-and-events.md), where the decompiled app shows IOCTRL command numbers in
