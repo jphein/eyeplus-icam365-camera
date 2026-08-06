@@ -127,7 +127,52 @@ the *effect*:
 re-fetch and diff the config, resolve the name, watch the file grow, measure the image
 difference. It costs one extra command and it is the only check the device cannot lie about.
 
+## 🚫 A decompiled struct's field order is **not** the wire order
+
+Found while extracting the vendor protocol from `com.tange365.icam365` 3.46.1. **[M]**
+
+**jadx lists class fields alphabetically.** So a decompiled struct hands you a field list that
+looks exactly like a wire layout and is not one:
+
+| `SFrameInfo` as decompiled | the real wire order |
+|---|---|
+| `cam_index, codec_id, flags, frame_size, onlineNum, reserved, timestamp` | `codec_id` at offset 0, `cam_index` at 3, `frame_size` at 8, `timestamp` at 12 |
+
+**The tell is that the decompiled order is a perfect A-to-Z run.** Once you see it, it is obvious;
+until you see it, the list is indistinguishable from the answer, and a struct parsed in that order
+produces plausible garbage rather than an error.
+
+**Only trust a layout recovered from a *method body*** — the code that actually reads or writes the
+buffer, where offsets are explicit.
+
+> 🔴 **And the harder case: a struct with no such method has no recoverable field order at all.**
+> `SAvExEvent`, the motion-event payload, is exactly that. There is nothing to be careful with —
+> the information is simply not in the decompile, and any ordering you assign is a guess wearing
+> the costume of a finding. It has to be settled against captured bytes.
+
+This is the same shape as everything else on this page, one layer further from the device: **the
+field list looks like the answer.** Compare the ONVIF `HwAddress` that
+[looks like a MAC and is a pointer](../README.md#-retracted-2026-08-06-identify-these-cameras-by-unique_id),
+and `GetServiceCapabilities` returning `200` for a service
+that does not exist because the dispatcher ignores namespaces.
+
+**Habit:** when a decoded structure comes out *almost* sensible, suspect the layout before
+suspecting the data.
+
+## 🚫 A parse failure reports as a measurement
+
+`<tt:HwAddress >` — this firmware emits a space inside the tag. A regex for `HwAddress>` matches
+**nothing**, and a script that then compares the empty result against a stored value prints
+`CHANGED`. **[M]** — this happened, and the false result was one step from being written down as
+a finding about the camera.
+
+**An empty match and a changed value are different outcomes and must not share a code path.**
+Assert that the extraction found *something* before comparing it, and when a result is surprising,
+look at the raw bytes before believing your own parser.
+
 ## See also
 
 * [security.md](security.md) — what the write-probe did to a camera
 * [provisioning.md](provisioning.md) — the `200`-means-parsed rule at the HTTP layer
+* [ai-and-events.md](ai-and-events.md) — `DrwAck`, and "an established session is not an
+  authorised session"
