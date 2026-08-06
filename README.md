@@ -58,23 +58,30 @@ could be pinned to the application layer rather than the network. Without that, 
 Cheap camera firmware is full of code that fails silently — wrong sysfs paths, unhandled branches,
 features half-ported from a sibling product. It reads as an obvious backlog of one-line fixes.
 
-**On the [Anyka camera](../anyka3918-gc1084-camera/), one of those was fixed and it broke a
-feature that had worked for weeks.** The vendor app wrote a sysfs node that did not exist on that
-kernel build — a bug by inspection. Repairing the path made the app's automatic day/night loop
-start landing its writes **for the first time since install**, and it began reverting every manual
-IR-cut toggle. **The silent failure was the only reason manual control had worked at all.**
+**On the [Anyka camera](../anyka3918-gc1084-camera/), one of those was fixed and it broke the
+IR-cut filter.** The driver `stat()`s *two* sysfs node names to choose its mode: **neither**
+present → stay disabled; **one** → write-and-hold; **both** → emit a 10 ms pulse for a latching
+solenoid. Both names were wrong on that kernel, so the driver had been sitting in *disabled* since
+the day the firmware shipped. Correcting **both** strings tipped it straight into *pulse* mode —
+and that camera's filter is hold-to-engage, so every command released the pin and parked the image
+in magenta.
+
+**Fixing one of the two strings would have worked. Fixing both broke it.**
 
 **Before repairing a wrong-looking path, establish what currently depends on it failing.**
 
-Two corollaries that apply directly to these cameras:
+Three corollaries, all of which apply directly to these cameras:
 
-* **"Never observed" is only evidence while the conditions that prevented it hold.** The conflict
-  had been predicted and dismissed because the loop had never been seen to act — it had never
-  acted *because the path was broken*, and the next step was to fix the path. If you are about to
-  change a condition, your observational record expires at that moment.
-* **On a device with no arbitration, enabling a dormant writer is not an additive change.** These
-  firmwares have no locking anywhere. A second actor that starts working is a second actor that
-  starts *fighting*.
+* **Thoroughness is not automatically safety.** "I found two instances of the bug and fixed both"
+  is what a careful person does, and here it was the harmful choice. When a component's behaviour
+  depends on *how many* things it can reach, fixing more of them is not a superset of fixing one.
+* **"Never observed" is only evidence while the conditions that prevented it hold.** Behaviour
+  nobody has seen from a disabled component is not evidence about the enabled one — and if you are
+  about to enable it, your entire observational record expires at that moment.
+* **A matching symptom is not a confirmed mechanism.** A prediction of this failure existed, the
+  reported symptom matched it word for word, and **the predicted cause was still wrong** — two
+  different mechanisms produced the same sentence. That match sent the investigation to the wrong
+  binary for hours.
 
 This is the same family as the rule above. *"200 means parsed, not honoured"* says do not trust a
 device's account of what it did. This one says do not trust your own account of what it does not
@@ -107,7 +114,7 @@ do.
 | Paired | 2024, **phone app, with cloud access** | today, **local `/setwifi`, `userid:"0"`** |
 | **Role** | 🔴 **production — going outside, by the cars** | 🧪 **lab — expendable** |
 | Extra open port | — | `3576`, purpose unknown |
-| Aim | untouched, **keep it that way** | ⚠️ needs physical re-aiming after PTZ testing |
+| Aim | untouched — **PTZ allowed, but deliberate** ([why](docs/ptz.md#ptz-on-icam365-01-allowed-deliberately-jp-2026-08-06)) | ⚠️ needs physical re-aiming after PTZ testing |
 
 > ⚠️ **Identify these cameras by `unique_id`, never by serial or by "cam #N".**
 >
@@ -125,11 +132,15 @@ do.
 That division was ambiguous in the source notes and has been settled explicitly, because it
 decides which unit the destructive findings apply to.
 
-Three rules follow, and a future reader will otherwise violate all of them:
+Four rules follow, and a future reader will otherwise violate all of them:
 
-* **No PTZ commands to `icam365-01`.** The aim is [irreversible](docs/ptz.md) and the camera
-  will be up a ladder.
+* **PTZ on `icam365-01`: deliberate, never casual.** The aim is [irreversible](docs/ptz.md) and
+  the camera will be up a ladder. The controls **are** present in HA — JP restored them on
+  2026-08-06 after they had been removed, on the grounds that a missing control reads as
+  *broken*, not as *protected*. Caution, not prohibition; rehearse on `icam365-02` first.
 * **No power-cycle testing on `icam365-01`.**
+* **No write-probing `icam365-01`'s vendor ports** — a single stray byte to `:20202` is
+  [enough to knock a camera off the network](docs/security.md).
 * **Any WAN pairing window is scoped to `icam365-02`'s address only** — never the whole camera
   VLAN, and never `icam365-01`.
 

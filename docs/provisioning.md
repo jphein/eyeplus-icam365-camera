@@ -144,18 +144,72 @@ camera to confirm it, and a negative result would mean having broken it to find 
 > gone up by the cars instead, the first power blip would have meant a ladder — and the fault
 > would have looked like dead hardware rather than a known limitation.
 
-#### One flip, two answers — and the second is still available
+### It gets worse than "loses config on a power cut" — and still does not threaten the outdoor unit
 
-A second finding makes a *future* reboot more valuable: **the camera never re-resolves DNS.** It
-is still firing at IP addresses cached during the WAN window, so a DNS override cannot redirect a
-client that is not querying. [M]
+**Measured: the lab camera reverted to AP mode twice with no power event at all**, roughly two
+minutes after rejoining, with nothing touching it in between. So the failure is not necessarily
+tied to power loss; it can be time- or failure-triggered.
 
-A fake PPPP masterserver and a DNS override are built. Because the camera **must reboot to
-re-resolve**, arming them before the next power cycle would test whether a synthesised login-ack
-changes its behaviour — the impersonation question — at no extra cost.
+> ✅ **Read this next part before concluding the outdoor plan is unsafe.**
+>
+> **`icam365-01` has never done this.** It has sat on this same cloud-blocked VLAN all day, and
+> for weeks before, and has never dropped to AP mode. The measured difference between the two
+> units is exactly the one that matters: `icam365-01` completed a **real app pairing with cloud
+> access**; `icam365-02` was provisioned locally with `userid:"0"` and has **never completed a
+> bind**.
+>
+> **[I], and consistent with every observation across both units:** a camera holding a completed
+> bind is stable indefinitely with the cloud firewalled, while one that has never bound keeps
+> retrying and eventually gives up back to AP.
+>
+> So the operational conclusion **sharpens rather than collapses**: *pair once with internet,
+> then isolate forever.*
 
-**That opportunity was not taken on this flip.** Arm the masterserver and the override *before*
-the next one, or it is wasted again.
+Three candidate causes for the lab unit's reverts remain open, and **none has been chosen**:
+a stray byte written to a vendor port corrupting stored config; the camera giving up on a bind
+it can never complete; and — self-inflicted — a stale DNS override that was feeding it a dead
+masterserver address every six seconds while all of this was observed. The third has now been
+removed, which makes any future revert a materially cleaner experiment than the ones already run.
+
+#### ❌ RETRACTED: "the camera never re-resolves DNS"
+
+This section used to read *"the camera never re-resolves DNS … a DNS override cannot redirect a
+client that is not querying"*, and concluded that impersonation needed a reboot to be armed
+against, or a DNAT fallback.
+
+**Measured on a freshly-provisioned camera: it re-resolves `p2p-002` and `p2p-003` every
+~6 seconds** — 36 queries each in a 222-second capture. [M]
+
+The original observation was of a camera that had been running for hours. **The retraction is
+about generality, not accuracy:** a settled camera stops asking; a fresh one asks constantly. So
+**local cloud impersonation failed for a timing reason, not a structural one** — the fake
+masterserver simply has to be listening while the camera is fresh. The DNAT fallback is not
+needed.
+
+#### What the camera does continuously, while apparently healthy [M]
+
+| observation | count / cadence |
+|---|---|
+| PPPP `MSG_HELLO` (`f1000000`) → cloud UDP 32100 | **~5 per second, non-stop** |
+| ICMP type 3 code 3 (port unreachable) from the router | continuous |
+| `0xF1F9` device login (84-byte body, differing each time) | every **~60 s** |
+| **inbound** from the cloud | **zero — nothing is ever answered** |
+| a previously unrecorded hostname, `ep.tange365.com` | resolved once, to real public IPs |
+
+> ⚠️ **This breaks an obvious-looking diagnostic.** "Did a failed cloud attempt precede the
+> fault?" cannot discriminate anything here — a failed attempt precedes *every* event, five
+> times a second. Only a **change** in the pattern is evidence: the login cadence breaking, a
+> new message type, or the retry loop stopping.
+
+#### ⚠️ Clean up interception overrides by *resolving the name*, not by grepping
+
+A DNS override pointing the vendor's masterserver names at a local address was recorded as
+"reverted and verified". **It was still live**, on all three names, pointing at an address where
+nothing was listening — so every cloud lookup the camera made for an entire day was answered
+with a dead host. It was found in a packet capture, not by re-reading the config. [M]
+
+**Verify a revert behaviourally: resolve the name and look at the answer.** A grep for what you
+believe you deleted will agree with you.
 
 ## ⚠️ A `200` does not mean it worked
 

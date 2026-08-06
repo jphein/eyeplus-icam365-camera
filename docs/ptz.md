@@ -12,11 +12,24 @@ PTZ works. It does **not** work the way ONVIF clients expect, and testing it is 
 > steps are not calibrated.
 >
 > **Before testing PTZ on a camera that is aimed at something on purpose, don't.** Test on one
-> whose framing does not matter yet.
->
-> **Concretely, in this setup: never send PTZ to `icam365-01`.** It is the production unit going
-> outside by the cars, where re-aiming means a ladder. `icam365-02` is the lab camera — do
-> destructive work there.
+> whose framing does not matter yet — `icam365-02` is the lab camera, do exploratory work there.
+
+### PTZ on `icam365-01`: allowed, deliberately (JP, 2026-08-06)
+
+An earlier revision of this page said *"never send PTZ to `icam365-01`"*, and the HA dashboard
+had its PTZ buttons removed to enforce it. **JP overrode that, and the controls are back.**
+
+The reasoning is worth keeping, because it generalises: **a missing control does not read as
+"protected", it reads as "broken".** Someone will conclude the integration failed and go
+re-derive PTZ from scratch — or worse, wire up something unvetted. A working control with a
+visible caution beside it is both safer and more honest than an absent one.
+
+So the rule for `icam365-01` is **caution, not prohibition**:
+
+* Move it **deliberately**, one step at a time, checking the snapshot tile after each step.
+* Expect **no undo**. Everything in the box above still applies — re-aiming is by hand, and
+  once the camera is mounted outside that means a ladder.
+* Rehearse anything unfamiliar on `icam365-02` first.
 
 ## What works
 
