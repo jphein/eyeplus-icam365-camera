@@ -32,8 +32,9 @@ something**.
   is no position feedback, no presets and no home. Rehearse on `icam365-02`.
   The HA controls are present on purpose — JP restored them 2026-08-06 because a
   missing control reads as *broken*, not as *protected*. Do not remove them again.
-- **Do not retire SSID `iot`.** Both cameras are still on it and can only be
-  re-provisioned from their own setup AP — retiring it costs a physical visit per unit.
+- **Do not retire the legacy SSID** (`my-iot-ssid` in these notes). Both cameras are
+  still on it and can only be re-provisioned from their own setup AP — retiring it
+  costs a physical visit per unit.
 - **Any WAN exception is scoped to `icam365-02`'s address only**, never the camera VLAN
   and never `icam365-01`. The VLAN is default-deny to WAN **by JP's explicit decision**;
   do not open it to make a cloud feature work. A previous scoped window was approved,
