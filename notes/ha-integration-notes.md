@@ -6,9 +6,9 @@
 
 | | |
 |---|---|
-| IP used | **10.0.10.21** (the reservation landed mid-task; `.224` is dead) |
+| IP used | **192.168.1.21** (the reservation landed mid-task; `.224` is dead) |
 | Config entry | **`01KZA98Z98RWZD7MKA59MQRNXC`**, state `loaded`, `disabled_by: null` |
-| Stale entry | `01J8DZFFMFETQJ8ZTN5W42EC4M` (host 10.0.8.106) — **deleted** |
+| Stale entry | `01J8DZFFMFETQJ8ZTN5W42EC4M` (host 192.168.8.106) — **deleted** |
 | Live entities | `camera.icam365_01_mainstream`, `camera.icam365_01_substream` (+ 2 buttons, 3 switches) |
 | mainstream proxy | **HTTP 200**, 122195 / 115103 / 140102 bytes, JPEG 1920x1080 |
 | substream proxy | **HTTP 200**, 28960 / 28689 / 31411 bytes, JPEG 640x360 |
@@ -21,12 +21,12 @@ Visually confirmed too: real scene (workbench + monitors) with the camera's own
 
 ## 1. The camera moved to its reserved IP mid-task
 
-At 17:43 only `.224` answered; by 17:52 only `.21` did. Gatekeeper confirms:
+At 17:43 only `.224` answered; by 17:52 only `.21` did. the router confirms:
 
 ```
-/tmp/dhcp.leases: 1786020313 a8:4f:a4:df:d6:3f 10.0.10.21 icam365-01
-ip neigh:  10.0.10.21  br-lan.10 lladdr a8:4f:a4:df:d6:3f REACHABLE
-           10.0.10.224 br-lan.10 FAILED        <-- old pool lease released
+/tmp/dhcp.leases: 1786020313 a8:4f:a4:df:d6:3f 192.168.1.21 icam365-01
+ip neigh:  192.168.1.21  br-lan.10 lladdr a8:4f:a4:df:d6:3f REACHABLE
+           192.168.1.224 br-lan.10 FAILED        <-- old pool lease released
 ```
 
 `.224` is genuinely gone, so writing it into HA would have broken immediately.
@@ -42,8 +42,8 @@ What actually happened — two independent faults stacking into a convincing imp
 **Fault A — katana had lost the on-link route for its own LAN.**
 
 ```
-$ ip route get 10.0.6.108
-10.0.6.108 via 10.0.6.1 dev enp5s0     <-- same-subnet host, routed via the gateway
+$ ip route get 192.168.1.10
+192.168.1.10 via 192.168.1.1 dev enp5s0     <-- same-subnet host, routed via the gateway
 ```
 
 The address carries `noprefixroute`, so the kernel does not auto-add the subnet route;
@@ -51,22 +51,22 @@ NetworkManager owns it, and NM dropped it after a **false** address conflict:
 
 ```
 Aug 05 17:42:53 katana NetworkManager: device (enp5s0): conflict detected for
-                                       IP address 10.0.6.129 with host 94:E6:F7:28:31:24
+                                       IP address 192.168.1.50 with host 94:E6:F7:28:31:24
 ```
 
-That MAC is katana's **own wlp6s0**, which briefly held 10.0.8.193 at 17:42:52 before
-moving to 192.165.56.20 (`1786020172 94:e6:f7:28:31:24 10.0.8.193` in gatekeeper's
-leases). No real duplicate host — router ARP shows `10.0.6.129 → 00:d8:61:bb:9f:8e`
+That MAC is katana's **own wlp6s0**, which briefly held 192.168.8.193 at 17:42:52 before
+moving to 192.165.56.20 (`1786020172 94:e6:f7:28:31:24 192.168.8.193` in the router's
+leases). No real duplicate host — router ARP shows `192.168.1.50 → 00:d8:61:bb:9f:8e`
 (katana's ethernet) and nothing else.
 
-Effect: katana's traffic to VLAN6 hairpinned through gatekeeper while the peer replied
-*directly* on-subnet. Asymmetric, so gatekeeper's conntrack never saw the return half
+Effect: katana's traffic to VLAN6 hairpinned through the router while the peer replied
+*directly* on-subnet. Asymmetric, so the router's conntrack never saw the return half
 and dropped the data packets — while the handshake still half-completed, which is why
 `nc -z` cheerfully reported "succeeded" on every port I tried. **`nc -z` success is not
 evidence of a working path.**
 
 **Why my cross-VLAN test misled me:** HA also has a leg on VLAN6, so whichever of its
-four IPs I targeted, its reply to `10.0.6.129` went out **directly on VLAN6** and
+four IPs I targeted, its reply to `192.168.1.50` went out **directly on VLAN6** and
 bypassed the router. Every leg was therefore broken by the same katana fault. The camera
 worked over that same VLAN10 path only because it has *no* VLAN6 leg, so its path was
 symmetric. "Cross-VLAN works for host X but not host Y" did not mean what I assumed.
@@ -78,8 +78,8 @@ returned `000`. Not a failure — the wrong scheme. `https://` → `200 {"messag
 running."}`. `000` from curl looks identical to "host is dead," which is exactly what
 sold me on the wrong story.
 
-**What broke the tie:** testing from a host that was *not* katana. From gatekeeper,
-HA's SSH banner came back instantly (`SSH-2.0-OpenSSH_10.3`), and gatekeeper's conntrack
+**What broke the tie:** testing from a host that was *not* katana. From the router,
+HA's SSH banner came back instantly (`SSH-2.0-OpenSSH_10.3`), and the router's conntrack
 showed HA actively making outbound HTTPS/DNS connections — i.e. a completely healthy
 host. That single third-party observation invalidated the whole "HA is wedged" theory.
 I should have reached for it before reporting a blocker.
@@ -87,7 +87,7 @@ I should have reached for it before reporting a blocker.
 **Fix applied** (additive, transient, reversible, restores what NM should have installed):
 
 ```
-sudo ip route add 10.0.6.0/24 dev enp5s0 proto kernel scope link src 10.0.6.129
+sudo ip route add 192.168.1.0/24 dev enp5s0 proto kernel scope link src 192.168.1.50
 ```
 
 **⚠️ This does NOT survive a reboot or an NM reactivation** — it is a runtime route
@@ -106,11 +106,11 @@ $ journalctl -u NetworkManager --since 17:50 | grep -iE 'route|conflict|acd'
 (nothing)
 $ journalctl --since 17:50 | grep 'ip route'
 Aug 05 17:57:13 katana sudo[473213]: jp : COMMAND=/usr/sbin/ip route add
-                 10.0.6.0/24 dev enp5s0 proto kernel scope link src 10.0.6.129
+                 192.168.1.0/24 dev enp5s0 proto kernel scope link src 192.168.1.50
 ```
 
 NM logged **no** route activity at all — the single route-add event in the whole window
-is mine. `nmcli` does now list `IP4.ROUTE[2]: dst = 10.0.6.0/24` where before it listed
+is mine. `nmcli` does now list `IP4.ROUTE[2]: dst = 192.168.1.0/24` where before it listed
 only the default, but that is NM *observing* an external route in the kernel, not NM
 owning one. The address still carries **`noprefixroute`**, so the kernel will never
 recreate this route by itself.
@@ -126,7 +126,7 @@ re-arms the moment wifi rejoins a homelab VLAN and picks up a 10.x lease.
 The lead's theory was that HA's SSH addon was refusing banner exchange under concurrent
 agent load and then recovered at 18:08. The timeline rules that out:
 
-- During the supposed wedge, gatekeeper got HA's SSH banner **instantly**
+- During the supposed wedge, the router got HA's SSH banner **instantly**
   (`SSH-2.0-OpenSSH_10.3`) and HA held 105 conntrack entries doing outbound HTTPS/DNS.
   A host too busy to answer does not answer a third party instantly.
 - `ssh ha` started working at **17:57:13**, in the same command that added the route —
@@ -178,8 +178,8 @@ The substream arrives `disabled_by: integration` (ONVIF's default); enabled via
 
 | Profile | `GetStreamUri` | ONVIF claims | ffprobe says |
 |---|---|---|---|
-| `Profile_1` mainStream | `rtsp://10.0.10.21:554/0/av0` | H264 1920x1080 | **hevc** 1920x1080 @12fps |
-| `Profile_2` subStream | `rtsp://10.0.10.21:554/0/av1` | H264 640x360 | **hevc** 640x360 @12fps |
+| `Profile_1` mainStream | `rtsp://192.168.1.21:554/0/av0` | H264 1920x1080 | **hevc** 1920x1080 @12fps |
+| `Profile_2` subStream | `rtsp://192.168.1.21:554/0/av1` | H264 640x360 | **hevc** 640x360 @12fps |
 
 Both carry `pcm_alaw` audio. `/0/video0` also yields the mainstream (loose path
 handling) but `/0/av1` *does* correctly select the substream, so paths are not fully

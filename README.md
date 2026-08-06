@@ -11,12 +11,12 @@ Confirmed against the live camera on 2026-08-06.
 
 | | |
 |---|---|
-| Address | `10.0.10.21` — camera VLAN, static DHCP reservation `icam365-01` |
+| Address | `192.168.1.21` — camera VLAN, static DHCP reservation `icam365-01` |
 | MAC | `a8:4f:a4:df:d6:3f` |
 | SSID | `iot` (2.4 GHz), bridged to the camera VLAN |
-| Main stream | `rtsp://10.0.10.21:554/0/av0` — **H.265** 1920×1080 @12 fps + PCM A-law |
-| Sub stream | `rtsp://10.0.10.21:554/0/av1` — **H.265** 640×360 @12 fps + PCM A-law |
-| ONVIF | `http://10.0.10.21/onvif/device_service` — **no authentication** |
+| Main stream | `rtsp://192.168.1.21:554/0/av0` — **H.265** 1920×1080 @12 fps + PCM A-law |
+| Sub stream | `rtsp://192.168.1.21:554/0/av1` — **H.265** 640×360 @12 fps + PCM A-law |
+| ONVIF | `http://192.168.1.21/onvif/device_service` — **no authentication** |
 | Open ports | 80, 554, 8001 only. No telnet, no SSH, no snapshot server |
 | Cloud | PPPP on UDP 32100 — **blocked** at the firewall |
 
