@@ -128,7 +128,7 @@ cause looks like an improvement.
 | ✅ PTZ | ONVIF `ContinuousMove` and HA's `onvif.ptz`. No presets, but the mechanical limits are repeatable, so **a "go to a known corner" macro exists** — aim is recoverable, not irreversible |
 | ✅ Local provisioning | [No cloud account needed](docs/provisioning.md) |
 | ✅ Availability monitoring | HA binary sensor + health sensor |
-| ⚠️ WiFi persistence | **Depends entirely on how the unit was paired.** App-paired with cloud → [survives a power cycle, measured](docs/provisioning.md#-confirmed-m-an-app-paired-camera-does-survive-a-power-cycle). Locally provisioned with `userid:"0"` → [loses its config on a single clean flip](docs/provisioning.md#-answered-it-is-not-durable-confirmed), measured. **Every camera needs one supervised app pairing before isolation.** |
+| ⚠️ WiFi persistence | **Depends entirely on how the unit was paired.** App-paired with cloud → [survives a power cycle, measured](docs/provisioning.md#-confirmed-m-a-camera-does-survive-a-power-cycle). Locally provisioned with `userid:"0"` → [loses its config on a single clean flip](docs/provisioning.md#-answered-it-is-not-durable-confirmed), measured. ⚠️ **The instruction that used to sit here — *"every camera needs one supervised app pairing before isolation"* — is withdrawn as premature.** It was derived from a cause that is [retracted to unproven](#-retracted-2026-08-06-icam365-01-was-app-paired-in-2024-with-cloud); the two units differ in **firmware** as well as pairing. If firmware is the real variable the correct instruction is *"run `57.0.8.0`"*, which is far cheaper. **Settle it on one spare before pairing twelve.** |
 | ❌ Position feedback / presets / home | Not implemented. **No way to restore a framing in software.** |
 | ❌ Motion events | [Structurally impossible over ONVIF](docs/ai-and-events.md) — though a **`tMotDet` thread runs on the device** |
 | ❌ AI detection / auto-tracking | Exists in hardware, [reachable only over the vendor P2P channel](docs/ai-and-events.md#where-the-features-actually-live) |
@@ -210,7 +210,7 @@ decides which unit the destructive findings apply to.
 
 Four rules follow, and a future reader will otherwise violate all of them:
 
-* **PTZ on `icam365-01`: deliberate, never casual.** The aim is [irreversible](docs/ptz.md) and
+* **PTZ on `icam365-01`: deliberate, never casual.** The aim cannot be restored to a *chosen* framing, though [a known corner is reachable](docs/ptz.md), and
   the camera will be up a ladder. The controls **are** present in HA — JP restored them on
   2026-08-06 after they had been removed, on the grounds that a missing control reads as
   *broken*, not as *protected*. Caution, not prohibition; rehearse on `icam365-02` first.
@@ -277,7 +277,7 @@ So the constraint is real, and it has a usable shape:
 >
 > That is the *same test* that stripped the lab unit's config — so the two rows above are now a
 > **controlled comparison**, not two anecdotes.
-> [Full evidence, and the confound it exposes, here.](docs/provisioning.md#-confirmed-m-an-app-paired-camera-does-survive-a-power-cycle)
+> [Full evidence, and the confound it exposes, here.](docs/provisioning.md#-confirmed-m-a-camera-does-survive-a-power-cycle)
 >
 > ⚠️ **What it still does *not* establish: the cause.** The units differ in pairing method **and in
 > firmware** (`57.0.8.0` vs `57.0.2.0`). A persistence bug fixed between those releases would

@@ -23,13 +23,21 @@ something**.
   knocks a camera off the network. Note `echo > /dev/tcp/host/port` **connects and
   writes a newline** — it is a port *write*, not a scan. That has already
   de-provisioned a device on this network.
-- **Do not re-run `/setwifi` on `icam365-01`.** It would send `userid:"0"` over that
-  unit's cloud binding, and its 2024 cloud pairing is the only reason it survives power
-  cuts. Also note `/setwifi` is honoured in **AP mode** and *silently ignored* in
+- **Do not re-run `/setwifi` on `icam365-01`.** It would send `userid:"0"` over whatever
+  binding that unit holds. ⚠️ **The rule stands; its old stated reason does not.** This
+  used to read *"its 2024 cloud pairing is the only reason it survives power cuts"* — that
+  attribution is **retracted to unproven** (2026-08-06): the only 2024 pairing record in HA
+  carries the *other* identifier, and the unit differs in **firmware** as well as binding
+  state. It **is** measured to survive a mains cut; **why** is not. Do not restore the old
+  reason, and do not weaken the rule on the strength of the retraction — an unknown cause is
+  a reason for more care, not less. Also note `/setwifi` is honoured in **AP mode** and *silently ignored* in
   **station mode** — every "it just works" note predates that discovery and was true
   only for the state it was tested in.
-- **PTZ on `icam365-01` is allowed but deliberate.** The aim is irreversible and there
-  is no position feedback, no presets and no home. Rehearse on `icam365-02`.
+- **PTZ on `icam365-01` is allowed but deliberate.** There is no position feedback, no
+  presets and no home. ⚠️ The aim is **not** irreversible — corrected 2026-08-06: the camera
+  stops dead at repeatable mechanical limits, so `act=3` then `act=9` is a working
+  "go to a known corner" macro. It does **not** restore a chosen framing, so aiming remains
+  deliberate. Rehearse on `icam365-02`.
   The HA controls are present on purpose — JP restored them 2026-08-06 because a
   missing control reads as *broken*, not as *protected*. Do not remove them again.
 - **Do not retire the legacy SSID** (`my-iot-ssid` in these notes). Both cameras are

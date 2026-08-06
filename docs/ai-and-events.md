@@ -36,7 +36,8 @@ reasoned from the integration's documented behaviour rather than instrumented.
 ## Where the features actually live
 
 The vendor app does not talk HTTP to the camera for any of this. Transport is **IOCTRL messages
-over a TUTK / ThroughTek P2P session** (`AVIOCTRLDEFs`), which is why nothing AI-shaped turned up
+over a P2P session** (`AVIOCTRLDEFs`) — ⚠️ **CS2 PPCS, not TUTK; see the retraction below before
+relying on this paragraph** — which is why nothing AI-shaped turned up
 in an HTTP fuzz of 4826 paths — it was never going to.
 
 From the decompiled app, the complete feature inventory of the hardware:
@@ -92,6 +93,33 @@ port, it has moved.
 **Session layer works; control layer does not.** Frames are acked and keepalives flow, but **no
 `Drw` payload ever comes back** — so the camera accepts the transport and answers nothing at the
 application layer.
+
+> ### ✅ SOLVED 2026-08-06 — the control layer is open, and JP's IR-cut ask is delivered
+>
+> **Two things were missing, and neither was the framing.** [M]
+>
+> 1. **The client must echo the device's `PUNCH_PKT` back at it.** Without that the device never
+>    sets its session-up flag and drops `DRW` frames *without even acking* — exactly the symptom
+>    below.
+> 2. **The application-layer password is genuinely required.** A/B tested and repeated: no password
+>    and *wrong* password both return the same generic refusal wrapper carrying `3`; **only the real
+>    credential returns typed data.** (Three floats, a struct and a light mode cannot all be the
+>    integer 3 — that constancy is what exposed it.)
+>
+> With both in place the camera answers with properly typed `_RESP` ids across `32790/32791`,
+> `32786/32787`, `1060/1061` and `32792/32793`.
+>
+> **`SET_DAYNIGHT` (32792) drives the IR-cut filter** — mode `2` takes saturation from 50.8 to
+> **0.000 with R = G = B exactly**, restored by mode `0`, restore verified by image comparison and
+> independently re-measured from a second host. See
+> [the README](../README.md#-solved-2026-08-06--daynight-is-controllable-over-the-vendor-channel).
+> **This is a capability ONVIF is measured to be structurally incapable of on this firmware.**
+>
+> ⚠️ **One trap worth carrying:** an earlier run of the same test produced a clean-looking negative
+> — tiny saturation change, "restored" — and it was **void, not negative**. The session had died
+> silently during 16–25 s snapshot gaps because no keepalives were sent, so both writes went
+> unanswered. It would have been reported as *"DAYNIGHT is acknowledged but has no visible
+> effect"*, the exact opposite of the truth. **No ack, no verdict.**
 
 > ⚠️ **`DrwAck` means "frame accepted", not "command understood".** This is
 > [the same trap as the HTTP 200s](../README.md#the-one-thing-to-know), one layer down. An acked

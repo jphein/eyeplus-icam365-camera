@@ -41,12 +41,16 @@ closed/reset, no ambiguous bucket); the other was confirmed by targeted probes. 
 |---|---|---|
 | 80 | `Ginatex-HTTPServer` | [ONVIF](onvif.md) + a dead [ISAPI-shaped surface](onvif.md#the-isapi-surface-on-port-80-is-a-dead-end) |
 | 554 | `TAS-Tech Streaming Server V100R001` | RTSP, no auth |
-| 3576 | ? | **one camera only.** Silent to everything. Purpose unknown |
+| 3576 | ? | Open on **at least two** units. Silent to everything. Purpose unknown |
 | 6670 | vendor binary protocol | see below |
 | 8001 | `TAS-Tech IPCam` | the two endpoints above |
 | 20202 | HTTP | [`/setwifi` provisioning](provisioning.md) — **stays open after pairing** |
 
-The two cameras have an identical surface **except 3576**, which only one has. Unexplained. [M]
+⚠️ **This used to read "identical surface except 3576, which only one has. Unexplained. [M]"**
+— retracted. `3576` is open on **at least two** units [M], and **which unit the original note
+meant is unrecoverable**, because the informal "cam #N" numbering is documented as inconsistent
+across sessions. **The `[M]` was the worse error**: it presented an unrecoverable attribution as a
+measurement.
 
 > **An earlier note recorded "ports 80, 554, 8001" for one camera.** That is incomplete — it
 > omits **6670** and **20202**.
@@ -163,7 +167,9 @@ measurement.**
 
 This is the most likely home of the vendor's real feature set — see
 [ai-and-events.md](ai-and-events.md), where the decompiled app shows IOCTRL command numbers in
-the hundreds and tens of thousands, consistent with "large or magic".
+the hundreds and tens of thousands. ⚠️ **Do not read that as support for "large or magic"** —
+that inference is retracted above; ids 2, 3 and 5 are live and the app's table belongs to a
+different daemon anyway.
 
 ## Port 3576 — no information
 
