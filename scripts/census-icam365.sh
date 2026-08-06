@@ -44,11 +44,17 @@ field() { printf '%s' "$1" | grep -oE "<[a-z]+:$2\s*>[^<]*" | head -1 | sed "s/.
 
 echo "Sweeping $SUBNET.0/24 for cameras (named ports, connect-confirmed — nmap is"
 echo "documented-unreliable against these devices)..."
+# ⚠️ The port needs a COLON — "http://$ip/8001/snapshot" is port 80 with a path
+# of /8001/snapshot, and it still finds cameras because :80 answers unknown
+# paths with 401. Detecting the right hosts by the wrong mechanism.
+# 501 is accepted too: a sibling model answers :8001 with "501 Can't get
+# picture" — alive, just without that endpoint.
 LIVE=$(seq 1 254 | xargs -P 32 -I{} sh -c '
     ip="'"$SUBNET"'.{}"
-    for p in 8001/snapshot 80/onvif/device_service; do
-        c=$(curl -s -m 1 -o /dev/null -w "%{http_code}" "http://$ip/$p" 2>/dev/null)
-        case "$c" in 200|400|401|405) echo "$ip"; exit 0 ;; esac
+    for probe in 8001:/snapshot 80:/onvif/device_service; do
+        port=${probe%%:*}; path=${probe#*:}
+        c=$(curl -s -m 1 -o /dev/null -w "%{http_code}" "http://$ip:$port$path" 2>/dev/null)
+        case "$c" in 200|400|401|405|501) echo "$ip"; exit 0 ;; esac
     done' 2>/dev/null | sort -V)
 
 if [ -z "$LIVE" ]; then echo "Nothing answered on $SUBNET.0/24."; exit 1; fi

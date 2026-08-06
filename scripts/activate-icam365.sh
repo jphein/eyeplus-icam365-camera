@@ -61,12 +61,19 @@ fi
 # Probe named ports and confirm by connecting — nmap is documented-unreliable
 # against these cameras (docs/vendor-api.md). Parallel across DIFFERENT hosts is
 # fine; what these cameras cannot take is concurrent connections to ONE of them.
+# ⚠️ The port needs a COLON. An earlier version built "http://$ip/8001/snapshot"
+# — port 80 with a path of /8001/snapshot — and still "worked", because the
+# ONVIF server on :80 answers unknown paths with 401, which was in the accept
+# list. It detected cameras via a mechanism it did not intend and would have
+# missed any camera that serves :8001 but not :80. A check that passes while
+# measuring the wrong thing is this project's signature failure.
 sweep() {
     seq 1 254 | xargs -P 32 -I{} sh -c '
         ip="'"$SUBNET"'.{}"
-        for probe in 8001/snapshot 80/onvif/device_service; do
-            c=$(curl -s -m 1 -o /dev/null -w "%{http_code}" "http://$ip/$probe" 2>/dev/null)
-            case "$c" in 200|400|401|405) echo "$ip"; exit 0 ;; esac
+        for probe in 8001:/snapshot 80:/onvif/device_service; do
+            port=${probe%%:*}; path=${probe#*:}
+            c=$(curl -s -m 1 -o /dev/null -w "%{http_code}" "http://$ip:$port$path" 2>/dev/null)
+            case "$c" in 200|400|401|405|501) echo "$ip"; exit 0 ;; esac
         done' 2>/dev/null | sort -V
 }
 
