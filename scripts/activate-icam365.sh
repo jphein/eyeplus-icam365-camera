@@ -116,8 +116,11 @@ PREV=$(nmcli -t -f NAME,TYPE connection show --active |
        awk -F: '$2=="802-11-wireless"{print $1; exit}')
 
 say "Recording which cameras already answer on $SUBNET.0/24"
-BEFORE=$(sweep)
-printf '%s\n' "$BEFORE" | sed 's/^/   /'
+BEFORE_F=$(mktemp)
+trap 'rm -f "$BEFORE_F"' EXIT
+sweep | grep -v '^$' > "$BEFORE_F"
+sed 's/^/   /' "$BEFORE_F"
+[ -s "$BEFORE_F" ] || echo "   (none yet)"
 
 say "Joining $AICAM"
 if ! nmcli dev wifi connect "$AICAM" ifname "$WIFI_DEV" >/dev/null; then
@@ -158,7 +161,15 @@ echo "   A 200 means PARSED, not honoured. Verifying by effect below."
 say "Waiting for a NEW camera to appear on $SUBNET.0/24 (up to 3 min)"
 for _ in $(seq 1 18); do
     sleep 10
-    NEW=$(comm -13 <(printf '%s\n' "$BEFORE") <(sweep))
+    # Set difference by exact whole-line match. NOT `comm`: comm requires
+    # LEXICOGRAPHIC order, the sweep sorts with `sort -V` (version order), and
+    # for addresses the two orders diverge once you have enough hosts --
+    # 192.168.1.223 sorts before 192.168.1.23 lexicographically but after it by
+    # version. comm then prints "input is not in sorted order" AND silently
+    # reports already-known cameras as new. It agreed with reality at three
+    # cameras and broke at four, which is exactly the kind of bug a fleet finds
+    # and a pair does not.
+    NEW=$(sweep | grep -vxF -f "$BEFORE_F" || true)
     if [ -n "$NEW" ]; then
         say "VERIFIED — provisioned and answering:"
         for ip in $NEW; do
