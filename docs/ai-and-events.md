@@ -102,6 +102,45 @@ rather than the iLnk scheme used by public cam-reverse tooling — note that `0x
 **high bit set**, which is characteristic of the AVAPI numbering rather than a plain sequential
 command id.
 
+> ### ❌ RETRACTED to unproven 2026-08-06: "this is TUTK"
+>
+> **It is not TUTK.** The vendor app (`com.tange365.icam365` 3.46.1, decompiled) links
+> **`libPPCS_API.so`** via `com.p2p.pppp_api.PPCS_APIs` — the **CS2 Network "PPCS" SDK**, of the
+> **PPPP** family. Grepping all 17 DEX files for `TUTK`, `IOTCAPIs`, `AVAPIs`, `avSendIOCtrl` or
+> `avClientStart` returns **nothing**. **[R-app]**
+>
+> It is a hybrid: **PPPP transport carrying TUTK's copied command vocabulary** (`IOTYPE_*`,
+> `AVIOCTRLDEFs`, `Tcis_*`). **That is why the session layer worked on the first attempt** — it
+> was PPPP all along, which is what the public cam-reverse tooling speaks.
+>
+> The `0x8020` reasoning above is retracted to *unproven, not false*: `0x8020` genuinely is
+> `GET_MOTION_TRACKER_REQ`, but the high bit marks the vendor's **`USEREX` extension range**, not
+> AVAPI numbering. Right value, wrong reason.
+>
+> 🔴 **This does NOT license conflating these cameras with the E27 bulb.** The refinement is
+> precise: iLnkP2P and CS2/PPCS are both PPPP derivatives, so the **transport** genuinely does
+> transfer — that is the honest reason a session came up. **Nothing above the transport does.**
+> A shared transport is still not a shared device.
+>
+> ### 🔑 And it explains "acked but silent"
+>
+> The app's **first** command after connecting is **`32770` PASSWORD_REQ**, before `511 START`,
+> `768 AUDIOSTART` and `800 SETSTREAMCTRL`. **[I]** the sessions recorded below were never
+> authenticated at the application layer, so the camera parsed the frames — hence `DrwAck` — and
+> answered none of them.
+>
+> **Third instance of this repo's signature trap, one layer deeper again:** `200` means parsed,
+> `DrwAck` means the frame was accepted, and now **an established session is not an authorised
+> session.**
+>
+> ⚠️ **Command-id collisions [R-app]:** eight ids in **788–811** carry two unrelated meanings,
+> including `GETSUPPORTSTREAM` vs **`SET_DEFENCE`**. A probe intended as a *read* in that range
+> may arm the alarm. Treat the whole range as write-suspect.
+>
+> ⚠️ **Constants are version-specific.** `EventDetect 798/796`, recorded elsewhere on this page,
+> **does not appear anywhere in 3.46.1**. Retracted to *unproven, not false* — it may come from a
+> different app version. Pin the version wherever a command table is quoted.
+
 ### The LAN channel is tractable. The cloud channel is not.
 
 This is the useful division, and it was established by measurement rather than assumed. [M]

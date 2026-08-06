@@ -66,7 +66,21 @@ bucket on this hardware** — and never conclude a port is closed from a sweep a
 
 ## Port 6670 — partially reverse-engineered
 
-Framing is:
+> ### ⚠️ RETRACTED to unproven 2026-08-06: the framing below may be **backwards**
+>
+> Decompiling the vendor app (`com.tange365.icam365` 3.46.1) shows its control framing is
+> **`[uint32 LE ioType][uint32 LE payloadLen][payload]`** — the same eight bytes, **reversed and
+> little-endian**. **[R-app]**
+>
+> **[I] If 6670 shares that framing, the 0–599 sweep below tested nothing**: it would have been
+> writing each candidate id into the *length* field, which produces exactly the observed "no id
+> is ever valid". A conclusion of *"the real ids are large or magic"* and a conclusion of *"we
+> were parsing the header the wrong way round"* are indistinguishable from the outside.
+>
+> **Not deleted, because it has not been re-measured** — a retest with `[LE id][LE len]` is
+> queued on the lab unit. Treat "6670 is a dead end" as **unproven**, not as established.
+
+Framing was recorded as:
 
 ```
 [4-byte big-endian total length][4-byte big-endian command id][payload]
