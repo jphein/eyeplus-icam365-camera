@@ -163,14 +163,34 @@ itself**, with a fresh 802.11 authentication *and* a fresh DHCP lease — a cold
 a re-association — and resumed serving frames. **It did not come back in AP mode. Its WiFi
 configuration survived.**
 
+**Also measured [M]: it was a genuine mains power cut.** JP confirmed the **outlet was off** and
+the camera was unpowered for the whole ~41-minute gap. This is not "it rebooted somehow" — it is
+mains removed and restored, with nothing else touching the device.
+
+### 🔬 That makes it a controlled comparison, not just an anecdote
+
+The lab unit's decisive test was *"one single clean off/on, nothing else"*. **This was the same
+test, on the other unit, with the opposite result** — and the two units differ in exactly one
+known respect:
+
+| | `icam365-01` | `icam365-02` |
+|---|---|---|
+| the test | mains off ~41 min, then on [M] | one clean off/on [M] |
+| **came back as** | **station mode, same SSID, unattended** [M] | **AP mode, config gone** [M] |
+| paired how | 2024 phone app, **with cloud access** | locally, `/setwifi`, `userid:"0"`, **never bound** |
+| firmware | `57.0.8.0` | `57.0.2.0` |
+
+> ⚠️ **Two variables differ, not one — and the second is easy to miss.** The pairing method is the
+> hypothesis, but **the firmware versions are also different**, and nothing yet rules out a
+> persistence bug fixed between `57.0.2.0` and `57.0.8.0`. A fleet of 12 makes that separable:
+> pair two units *identically* and differ only in firmware, or flash-match two units and differ
+> only in pairing. **Until then the cause is still [I], however satisfying the story is.**
+
 **Still inferred [I]**, and not to be quietly promoted:
 
-* **That the event was a power cycle.** JP reported re-plugging it, and a fresh auth plus a fresh
-  lease is what a cold boot looks like — but the infrastructure cannot distinguish *power removed
-  and restored* from *spontaneous reboot or crash-recovery*. That distinction matters here: the
-  lab unit is on record reverting to AP mode **with no power event at all**.
-* **That the 2024 cloud pairing is the cause.** This confirms an **effect** on one unit, not a
-  mechanism. A completed bind remains the leading explanation and is still untested.
+* **That the 2024 cloud pairing is the cause.** This is now a strong controlled contrast rather
+  than a single observation — but it confirms an **effect**, not a mechanism, and the firmware
+  confound above is live. A completed bind remains the leading explanation and is still untested.
 
 > ⚠️ **Do not read this as "the durability problem is solved."** It confirms only that *this*
 > app-paired unit tolerated *this* outage. The locally-provisioned failure is unchanged and still

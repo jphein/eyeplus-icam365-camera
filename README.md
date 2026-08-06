@@ -197,14 +197,18 @@ So the constraint is real, and it has a usable shape:
 > dead hardware.
 
 > ✅ **The `icam365-01` row was upgraded from inferred to measured on 2026-08-06 — for free.**
-> Nobody was ever going to power-cycle the production camera to confirm it. Then it dropped off
-> the network on its own, and returned **unattended, on the same SSID, with a fresh 802.11 auth
-> and a fresh DHCP lease** — a cold boot that kept its WiFi config.
-> [The full evidence, and what is still inferred, is here.](docs/provisioning.md#-confirmed-m-an-app-paired-camera-does-survive-a-power-cycle)
+> Nobody was ever going to power-cycle the production camera to confirm it. Then **its outlet went
+> off** (confirmed by JP — a genuine mains cut, unpowered ~41 min), and it came back **unattended,
+> on the same SSID, with a fresh 802.11 auth and a fresh DHCP lease.**
 >
-> **What this does *not* establish:** that the 2024 cloud pairing is the *cause* (an effect on one
-> unit is not a mechanism), or that the outage was definitely a power cut rather than a
-> spontaneous reboot. Both remain **[I]**.
+> That is the *same test* that stripped the lab unit's config — so the two rows above are now a
+> **controlled comparison**, not two anecdotes.
+> [Full evidence, and the confound it exposes, here.](docs/provisioning.md#-confirmed-m-an-app-paired-camera-does-survive-a-power-cycle)
+>
+> ⚠️ **What it still does *not* establish: the cause.** The units differ in pairing method **and in
+> firmware** (`57.0.8.0` vs `57.0.2.0`). A persistence bug fixed between those releases would
+> explain the result just as well. Twelve units make that separable; until then the mechanism is
+> **[I]**.
 >
 > **Worth keeping:** the decisive experiment had been ruled out as too expensive, so it was never
 > designed — and it then ran itself. It was caught only because a cheap instrument that touches no
