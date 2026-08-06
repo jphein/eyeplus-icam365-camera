@@ -124,6 +124,23 @@ the local shortcut cannot.
 
 The answer decides whether this page's outdoor guidance is a **warning** or a **footnote**.
 
+#### One flip now answers *two* questions
+
+A second finding makes the same reboot more valuable: **the camera never re-resolves DNS.** It is
+still firing at IP addresses cached during the WAN window, so a DNS override cannot redirect a
+client that is not querying. [M]
+
+A fake PPPP masterserver and a DNS override are built and can be armed beforehand — and **the
+camera must reboot to re-resolve**, which is exactly what this test does anyway. So one power
+cycle yields:
+
+1. **Durability** — does it come back on WiFi, or in AP mode having forgotten?
+2. **Impersonation** — on boot it re-resolves, lands on the fake masterserver, and we learn
+   whether a synthesised login-ack changes its behaviour.
+
+**Arm the masterserver and the override before flipping**, or the second answer is wasted and the
+camera has to be rebooted again to get it.
+
 > ⚠️ **Run it on `icam365-02` only. Never on `icam365-01`.** The production camera's 2024
 > app-pairing history is the *only* evidence that app-paired units are durable. Power-cycling it
 > would destroy that evidence and the production camera in the same move. See the
