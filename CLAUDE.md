@@ -115,7 +115,11 @@ If another agent is working a camera, coordinate or wait. Announce writes.
 
 - [`../ilnk-e27-bulb-camera/`](../ilnk-e27-bulb-camera/) — **a genuinely different
   device.** Beken/RT-Thread running **iLnkP2P**; these are Anyka-class Linux running
-  **TUTK/ThroughTek**. Both talk UDP 32100 and neither used the vendor app, which has
+  **CS2 Network PPCS** (`libPPCS_API.so`, the PPPP family — *not* TUTK; corrected
+  2026-08-06 from the decompiled app). ⚠️ **This makes them closer relatives than the
+  old note claimed** — both are PPPP derivatives, so the **transport** genuinely does
+  transfer. **Nothing above the transport does**, and the rule stands: a shared
+  transport is not a shared device. Both talk UDP 32100 and neither used the vendor app, which has
   caused this conflation **twice**. A shared port number is not a shared protocol —
   tooling, framing and command IDs transfer in neither direction.
 - [`../anyka3918-gc1084-camera/`](../anyka3918-gc1084-camera/) — the other hacked camera

@@ -119,7 +119,9 @@ permitted. Local ONVIF and RTSP are unaffected; anything depending on the vendor
 work, which is the intended trade.
 
 > **One caveat on the protocol name.** The "PPPP on UDP 32100" description came from an earlier
-> note and is **not independently verified for these cameras**. They are Tange/ThroughTek
+> note and is **not independently verified for these cameras**. ⚠️ **Vendor corrected 2026-08-06:
+> the app links `libPPCS_API.so` (CS2 Network PPCS, the PPPP family), not TUTK/ThroughTek** — so
+> any claim inherited from ThroughTek advisories does not apply by that route. They are Tange
 > devices; the other P2P camera in this project is a different vendor and stack. The two should
 > not be assumed to share a protocol just because both use UDP 32100 — that conflation has
 > already cost time once. What *is* measured: these cameras answer a P2P LAN-search probe

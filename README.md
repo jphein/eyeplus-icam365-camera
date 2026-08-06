@@ -340,7 +340,11 @@ ffprobe -rtsp_transport tcp rtsp://192.168.1.21:554/0/av1    # sub    640x360
   VLAN, with a full HTTP API reference
 * [`ilnk-e27-bulb-camera`](../ilnk-e27-bulb-camera/) — a P2P bulb camera, and **a genuinely
   different device**: Beken silicon running RT-Thread and **iLnkP2P**, where these are
-  **Tange/ThroughTek running TUTK**. Do not assume they share a protocol because both use UDP
+  **CS2 Network PPCS** (`libPPCS_API.so`, PPPP family — **not TUTK**; corrected 2026-08-06 from
+  the decompiled vendor app). ⚠️ They are in fact **closer relatives than this page used to
+  claim**: both are PPPP derivatives, so the **transport** transfers — which is the honest reason
+  a local session came up first try. **Nothing above the transport does.** Do not assume they
+  share a protocol because both use UDP
   32100 — that conflation has already cost this project time twice.
 
 ## A note on addresses
