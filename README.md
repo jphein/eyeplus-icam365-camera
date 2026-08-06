@@ -288,6 +288,44 @@ So the constraint is real, and it has a usable shape:
 > designed — and it then ran itself. It was caught only because a cheap instrument that touches no
 > device (an AP association log, a lease timestamp) happened to be pointed at it.
 
+## Hardware, confirmed by looking at it
+
+**Physically verified on the units in hand, 2026-08-06. [M]** This matters more than it looks:
+every one of these is a capability the **network cannot see**, and in three cases the network
+negative had already been recorded and would have read as "the feature does not exist".
+
+| | present | reachable over any open protocol |
+|---|---|---|
+| **Microphone** | ✅ all units | ✅ yes — PCM A-law in the RTSP stream |
+| **Speaker** | ✅ **all units** | ❌ **no** — [no ONVIF backchannel, ten operations absent, SDP `recvonly`](docs/onvif.md) |
+| **IR LEDs** | ✅ **all units** | ❌ **no** — no auxiliary commands, no imaging extension |
+| **IR-cut filter** | ✅ (implied by IR LEDs + day/night) | ❌ **no** — `Get/SetImagingSettings` are **HTTP 400, absent** |
+| **SD card slot** | ✅ **all units** | ❌ **no** — `GetStorageConfigurations`, `GetRecordings` → `ActionNotSupported` |
+| PTZ motors | ✅ pan + tilt | ✅ yes — `ContinuousMove`, and the vendor `ptzctrl` endpoint |
+
+> ### 🔑 The lesson is about what a negative result means
+>
+> Before this inspection, the speaker, the IR LEDs and the storage were all recorded as *not
+> found over the network*, and the honest write-up said so — "consistent with 'no speaker' **and**
+> with 'speaker exists, vendor-protocol only'". **The hardware inspection collapses that
+> ambiguity in one direction: the hardware is all there.**
+>
+> So these are not missing features. They are **features whose control surface is not exposed by
+> any open protocol** — which is a completely different problem with a completely different fix.
+> The first says buy different cameras; the second says finish the vendor-protocol work.
+>
+> **Where a device's self-report is systematically unreliable, the cheapest reliable instrument
+> may be a person looking at the thing.** On this hardware the label and the case have
+> outperformed ONVIF at least twice — see also
+> [the identity retraction](#-retracted-2026-08-06-identify-these-cameras-by-unique_id), where the
+> serial, the model, the hardware id and the pseudo-MAC are all shared constants and the sticker
+> is the *more* trustworthy source.
+
+⚠️ **The IR-LED network negative was already flagged as weak by the agent that measured it** — the
+sweep ran in daylight, and firmwares commonly refuse to light an IR lamp while the ambient sensor
+reads "day", so daylight makes that test *harder*, not easier. The hardware confirmation makes a
+post-dusk re-test worthwhile rather than academic.
+
 ## Identity, such as it is
 
 Every identifying field is a placeholder, which is typical of a white-label OEM that expects the
