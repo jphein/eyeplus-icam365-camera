@@ -28,7 +28,11 @@ case "$MODE" in
 main|sub)
     AV=av0
     if [ "$MODE" = sub ]; then AV=av1; fi
+    # hwdec off explicitly: probing vaapi is a dead end wherever the GPU
+    # predates HEVC, and the failed probe spams the terminal ("init failed",
+    # "No support for codec hevc profile 1") before falling back anyway.
     exec mpv --profile=low-latency --no-audio --rtsp-transport=tcp \
+         --hwdec=no --gpu-hwdec-interop=no \
          --title="icam365 $IP $MODE" "rtsp://$IP:554/0/$AV"
     ;;
 snap)
