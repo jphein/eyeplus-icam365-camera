@@ -100,6 +100,48 @@ if [ -n "$PREV" ]; then
     nmcli connection up "$PREV" >/dev/null 2>&1 || true
 fi
 
+# A brand-new unit has no DHCP reservation yet, so its address is unknown. Set
+# ICAM_VERIFY_IP='' to sweep the camera subnet instead and report what answers.
+# The sweep connects to named ports rather than port-scanning: nmap is
+# documented-unreliable against these cameras (docs/vendor-api.md).
+if [ -z "$VERIFY_IP" ]; then
+    SUBNET="${ICAM_SUBNET:-192.168.1}"
+    say "Discovering the new camera on $SUBNET.0/24 (up to 3 min)"
+    echo "   Known-camera addresses are listed as KNOWN; anything else is your new unit."
+    KNOWN="${ICAM_KNOWN:-}"
+    for _ in $(seq 1 18); do
+        FOUND=""
+        for h in $(seq 1 254); do
+            IP="$SUBNET.$h"
+            # :8001 is the vendor snapshot port; :80 is ONVIF. A different model
+            # may serve one and not the other, so accept either.
+            for probe in "8001/snapshot" "80/onvif/device_service"; do
+                C=$(curl -s -m 1 -o /dev/null -w '%{http_code}' \
+                    "http://$IP:${probe}" 2>/dev/null) || C=000
+                case "$C" in
+                    200|400|401|405)
+                        case " $KNOWN " in
+                            *" $IP "*) FOUND="$FOUND  $IP (KNOWN)" ;;
+                            *)         FOUND="$FOUND  $IP  <-- NEW" ;;
+                        esac
+                        break ;;
+                esac
+            done
+        done
+        if [ -n "$FOUND" ]; then
+            say "Cameras answering on $SUBNET.0/24:"
+            printf '%s\n' $FOUND | sed 's/^/   /'
+            echo
+            echo "Give the NEW address a DHCP reservation now — the ONVIF integration"
+            echo "cannot be reconfigured in place, so the address you pair on is permanent."
+            exit 0
+        fi
+        sleep 10
+    done
+    say "Nothing answered on $SUBNET.0/24 after 3 min."
+    exit 2
+fi
+
 say "Verifying the EFFECT: polling http://$VERIFY_IP:8001/snapshot (up to 3 min)"
 for _ in $(seq 1 36); do
     CODE=$(curl -s -m 4 -o /dev/null -w '%{http_code}' \
