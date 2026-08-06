@@ -87,6 +87,37 @@ This is the same family as the rule above. *"200 means parsed, not honoured"* sa
 device's account of what it did. This one says do not trust your own account of what it does not
 do.
 
+### 🔴 And it already applies here: the codec lie is load-bearing
+
+**This is not an analogy. It is live on these cameras, and it is an operational risk.**
+
+Home Assistant's ONVIF integration **only builds camera entities for profiles reporting
+`Encoding == "H264"`.** These cameras stream **H.265** and
+[report `H264` anyway](#the-one-thing-to-know).
+
+> **If the firmware ever told the truth about its codec, HA would create no camera entities at
+> all.** No cameras, no PTZ, nothing — and **nothing in any log would explain it.**
+
+So the single most-cited example of these cameras lying about themselves is **the only reason the
+integration works.** A vendor firmware update that *fixed* the codec string would silently empty
+the dashboard.
+
+**Note the direction of travel, because it is the mirror image of the Anyka case:**
+
+| | Anyka | Here |
+|---|---|---|
+| What is wrong | a **broken path** | a **false self-report** |
+| What depends on it | manual IR-cut control | the entire HA integration |
+| What breaks it | fixing the path | fixing the string |
+
+**Two different devices, one week, same shape.** A defect can be the load-bearing member — whether
+the defect is something failing or something lying. **"This is obviously wrong" is a statement
+about the code. It is not a statement about what happens if you correct it.**
+
+⚠️ **Practical consequence:** if these cameras vanish from Home Assistant after a firmware update,
+**check the ONVIF codec string before anything else.** The symptom is total and silent, and the
+cause looks like an improvement.
+
 ## What works
 
 | | |
