@@ -127,6 +127,7 @@ work, which is the intended trade.
 
 ## See also
 
+* [method.md](method.md) — the safe way to probe a port, and other checks that lie
 * [onvif.md](onvif.md) — the full ONVIF surface, including what it lies about
 * [vendor-api.md](vendor-api.md) — the unauthenticated `:8001` endpoints
 * [provisioning.md](provisioning.md) — `:20202`, which stays open after pairing

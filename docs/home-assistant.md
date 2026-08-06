@@ -44,6 +44,32 @@ data: {pan: RIGHT, move_mode: ContinuousMove, continuous_duration: 1}
 > There is no absolute positioning: any press permanently changes the camera's aim, and nothing
 > can restore it in software.
 
+### How to tell whether `onvif.ptz` will work, without moving the camera
+
+Useful when the camera is one you cannot afford to re-aim. HA gates `ContinuousMove` on exactly
+one thing: [M, read from source]
+
+```python
+if not profile.ptz or not profile.ptz.continuous:      # -> warns and returns, sends nothing
+```
+
+and `profile.ptz.continuous` is set **only** from `GetProfiles` →
+`PTZConfiguration.DefaultContinuousPanTiltVelocitySpace is not None`. So a read-only
+`GetProfiles` against the camera tells you whether the service will reach it.
+
+Two things that look like evidence and are not:
+
+* **`capabilities.ptz` proves nothing.** It comes from `self.device.get_definition("ptz")` — a
+  **local WSDL lookup that never contacts the camera** — so it is effectively always true. Its
+  presence is not support and its absence is not a diagnosis.
+* **`move_mode: Stop` is useless as a probe.** `Stop` is `ActionNotSupported` on this firmware,
+  so it cannot move the camera — but the call returns HTTP 200 and logs **nothing at any level**
+  on a camera whose PTZ works perfectly. It distinguishes nothing.
+
+> Also worth knowing when hunting for HA-side evidence: **`/api/error_log` is 404 on HA
+> 2026.7.4**, and this install writes no `home-assistant.log`. The websocket
+> `system_log/list` is the only view, and it holds **WARNING and above only**.
+
 ## Availability monitoring
 
 `binary_sensor.icam365_0N_online` and `sensor.icam365_0N_health`, driven by a helper that
@@ -80,6 +106,34 @@ saying why** — otherwise the obvious tidy-up is to "fix" it back to `live` and
 black tile.
 
 ## Traps
+
+### 🔑 The codec lie is load-bearing — it is the only reason any camera entity exists
+
+HA's ONVIF integration builds camera entities **only** for profiles that report H.264. From
+`homeassistant/components/onvif/device.py`, `async_get_profiles`: [M, read from source]
+
+```python
+# Only add H264 profiles
+if (not onvif_profile.VideoEncoderConfiguration
+        or onvif_profile.VideoEncoderConfiguration.Encoding != "H264"):
+    continue
+```
+
+These cameras **stream H.265 and report `H264`** — one of the
+[five documented self-report lies](../README.md#the-one-thing-to-know).
+
+> **If the firmware ever told the truth about its codec, HA would skip every profile and create
+> no camera entities at all** — no cameras, no PTZ service target, no dashboard, nothing. The
+> integration would appear simply to stop working, with no error explaining why.
+
+So a firmware update that *fixes* the codec reporting is a **breaking** update here. If these
+entities ever vanish after an update, check `GetProfiles` for `Encoding` before assuming the
+integration or the camera has failed.
+
+This is the same shape as the
+[load-bearing dead path](../README.md#the-sibling-rule-learned-on-the-anyka-camera-a-broken-thing-may-be-load-bearing)
+found on the Anyka the same day: **twice, on unrelated devices, a bug was the only reason
+something worked.**
 
 ### ⚠️ The ONVIF integration cannot be reconfigured in place
 
