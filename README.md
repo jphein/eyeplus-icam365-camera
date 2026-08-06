@@ -128,7 +128,7 @@ cause looks like an improvement.
 | ✅ PTZ | ONVIF `ContinuousMove` and HA's `onvif.ptz` — [but testing it destroys the aim](docs/ptz.md) |
 | ✅ Local provisioning | [No cloud account needed](docs/provisioning.md) |
 | ✅ Availability monitoring | HA binary sensor + health sensor |
-| 🔴 WiFi persistence | **Confirmed non-durable.** A single clean power cycle loses the config, even after cloud contact. [Every camera needs one supervised app pairing before isolation](docs/provisioning.md#-answered-it-is-not-durable-confirmed) |
+| ⚠️ WiFi persistence | **Depends entirely on how the unit was paired.** App-paired with cloud → [survives a power cycle, measured](docs/provisioning.md#-confirmed-m-an-app-paired-camera-does-survive-a-power-cycle). Locally provisioned with `userid:"0"` → [loses its config on a single clean flip](docs/provisioning.md#-answered-it-is-not-durable-confirmed), measured. **Every camera needs one supervised app pairing before isolation.** |
 | ❌ Position feedback / presets / home | Not implemented. **No way to restore a framing in software.** |
 | ❌ Motion events | [Structurally impossible over ONVIF](docs/ai-and-events.md) — no pull-point subscription |
 | ❌ AI detection / auto-tracking | Exists in hardware, [reachable only over the vendor P2P channel](docs/ai-and-events.md#where-the-features-actually-live) |
@@ -184,8 +184,8 @@ A natural experiment, now half-measured:
 
 | | Paired how | Survives a power cycle? |
 |---|---|---|
-| `icam365-01` | 2024, **phone app, with cloud** | **Yes** — through every power cut since. **[I]** |
-| `icam365-02` | today, **locally, no cloud bind** | **No** — [confirmed on a single clean flip](docs/provisioning.md#-answered-it-is-not-durable-confirmed). **[M]** |
+| `icam365-01` | 2024, **phone app, with cloud** | **Yes** — [confirmed 2026-08-06, unattended](docs/provisioning.md#-confirmed-m-an-app-paired-camera-does-survive-a-power-cycle). **[M]** |
+| `icam365-02` | locally, **no cloud bind** | **No** — [confirmed on a single clean flip](docs/provisioning.md#-answered-it-is-not-durable-confirmed). **[M]** |
 
 So the constraint is real, and it has a usable shape:
 
@@ -196,9 +196,19 @@ So the constraint is real, and it has a usable shape:
 > the cars, the first power blip would have orphaned it — at the top of a ladder, looking like
 > dead hardware.
 
-> ⚠️ **The `icam365-01` row stays inferred.** Nobody is power-cycling the production camera to
-> confirm it: a negative result would mean having broken it to learn that. Its 2024 history is
-> good enough to act on and is **not** a measurement.
+> ✅ **The `icam365-01` row was upgraded from inferred to measured on 2026-08-06 — for free.**
+> Nobody was ever going to power-cycle the production camera to confirm it. Then it dropped off
+> the network on its own, and returned **unattended, on the same SSID, with a fresh 802.11 auth
+> and a fresh DHCP lease** — a cold boot that kept its WiFi config.
+> [The full evidence, and what is still inferred, is here.](docs/provisioning.md#-confirmed-m-an-app-paired-camera-does-survive-a-power-cycle)
+>
+> **What this does *not* establish:** that the 2024 cloud pairing is the *cause* (an effect on one
+> unit is not a mechanism), or that the outage was definitely a power cut rather than a
+> spontaneous reboot. Both remain **[I]**.
+>
+> **Worth keeping:** the decisive experiment had been ruled out as too expensive, so it was never
+> designed — and it then ran itself. It was caught only because a cheap instrument that touches no
+> device (an AP association log, a lease timestamp) happened to be pointed at it.
 
 ## Identity, such as it is
 

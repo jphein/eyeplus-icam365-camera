@@ -137,8 +137,52 @@ That is decisive, and it closes the question three ways:
 > Local `/setwifi` **works**, and it is genuinely useful — but it yields a camera that **forgets
 > its WiFi on every power cut**. Fine on a bench. **Unusable on a pole.**
 
-The `icam365-01` half stays **[I] inferred**: nobody is going to power-cycle the production
-camera to confirm it, and a negative result would mean having broken it to find out.
+The `icam365-01` half was **[I] inferred** for exactly one day, on the grounds that nobody would
+power-cycle the production camera to confirm it and a negative result would mean having broken it
+to find out. **It is no longer inferred — see immediately below.**
+
+### ✅ CONFIRMED [M]: an app-paired camera *does* survive a power cycle
+
+**The experiment this project refused to run ran itself, 2026-08-06.** `icam365-01` — outdoors,
+production, app-paired with cloud in 2024 — went off-network unexpectedly and JP re-plugged it.
+The event was instrumented entirely from the infrastructure side, at zero risk to the camera,
+because the risky part had already happened:
+
+| time | observation | source |
+|---|---|---|
+| 14:31:17 | `AP-STA-DISCONNECTED` … `disassociated due to inactivity` — it went **silent**, no clean deauth | AP `logread` |
+| 14:31–15:12 | absent from **every AP on the property**; no ARP entry; `:8001` timing out | assoclist sweep, gateway `ip neigh` |
+| 15:12:01 | `authenticated` → `associated` → `EAPOL-4WAY-HS-COMPLETED` on the **same SSID**, unattended | AP `logread` |
+| 15:12:xx | **fresh DHCP lease issued** (the previous lease had been issued ~230 min earlier) | gateway leases |
+| 15:12:45 | `/snapshot` → `200`, 41 KB, 73 ms | measured |
+
+Evidence was copied out of the AP's rotating `logread` buffer, which is volatile.
+
+**Measured [M]:** the camera left the network for ~41 minutes, returned on the **same SSID by
+itself**, with a fresh 802.11 authentication *and* a fresh DHCP lease — a cold network stack, not
+a re-association — and resumed serving frames. **It did not come back in AP mode. Its WiFi
+configuration survived.**
+
+**Still inferred [I]**, and not to be quietly promoted:
+
+* **That the event was a power cycle.** JP reported re-plugging it, and a fresh auth plus a fresh
+  lease is what a cold boot looks like — but the infrastructure cannot distinguish *power removed
+  and restored* from *spontaneous reboot or crash-recovery*. That distinction matters here: the
+  lab unit is on record reverting to AP mode **with no power event at all**.
+* **That the 2024 cloud pairing is the cause.** This confirms an **effect** on one unit, not a
+  mechanism. A completed bind remains the leading explanation and is still untested.
+
+> ⚠️ **Do not read this as "the durability problem is solved."** It confirms only that *this*
+> app-paired unit tolerated *this* outage. The locally-provisioned failure is unchanged and still
+> [confirmed on a single clean flip](#-answered-it-is-not-durable-confirmed). The operational rule
+> — *pair once with internet, then isolate forever* — is **strengthened, not replaced**.
+
+**The transferable lesson is about instrumentation, not cameras.** The decisive test had been
+ruled out as too costly, so it was never designed — and it then happened by accident, where it
+would have been lost had nobody been watching the right log. **An experiment you have declined to
+run can still run itself. Decide in advance what would count as its result, and keep a cheap
+instrument pointed at it** — here an AP association log and a DHCP lease timestamp, neither of
+which touches the device at all.
 
 > ✅ **This retroactively validates the choice to put `icam365-01` outside.** Had the lab unit
 > gone up by the cars instead, the first power blip would have meant a ladder — and the fault
