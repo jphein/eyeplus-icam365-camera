@@ -165,15 +165,31 @@ cause looks like an improvement.
 > `&mac[0], &mac[1], …` — the locations of the buffer's bytes — instead of the bytes. The two
 > bases differ by `0x3198`.
 >
-> **[I] If that address is build-deterministic, `unique_id` identifies the *firmware*, not the
-> unit — and every camera on the same firmware reports the same one.** With 12 cameras that is
-> not an academic point: Home Assistant keys ONVIF devices on it.
+> ### 🔴 CONFIRMED [M] — it is a firmware fingerprint. Two cameras, one identity.
 >
-> **What is measured so far [M]:** the value is **stable across a genuine cold boot** —
-> `icam365-01` returned the identical string after a confirmed mains cut — so it is deterministic
-> rather than per-boot noise. The two known units differ in `unique_id` **and** in firmware, so
-> that observation is equally consistent with either reading. **The discriminator is two units on
-> the same firmware, which has never been done.** It costs one read-only ONVIF call per unit.
+> The discriminator was run on 2026-08-06, the first time a **third** unit existed. A physically
+> different camera (`icam365-wall`, its own real MAC, provisioned from its own setup AP) was asked
+> for its `HwAddress`:
+>
+> | unit | real MAC (from DHCP) | firmware | ONVIF `unique_id` |
+> |---|---|---|---|
+> | `icam365-02` | `…:f7:bf:6d` | `57.0.2.0` | `3ab284:…:3ab289` |
+> | `icam365-wall` | `…:df:ac:2e` | `57.0.2.0` | **`3ab284:…:3ab289` — identical** |
+> | `icam365-01` | `…:df:d6:3f` | `57.0.8.0` | `3a80ec:…:3a80f1` |
+>
+> **Two distinct physical cameras with different MACs return byte-identical `unique_id`s, and the
+> only unit that differs is the one on different firmware.** The value tracks the build, not the
+> device. It is also **stable across a genuine cold boot** — `icam365-01` returned the identical
+> string after a confirmed mains cut — so it is deterministic, not per-boot noise.
+>
+> 🔴 **Consequence for a 12-camera fleet: they do not have 12 identities. They have one per
+> firmware version.** Home Assistant's ONVIF integration keys devices on this value, so adding a
+> second camera on the same firmware is expected to be **rejected as already-configured** —
+> silently, and looking like nothing happened.
+>
+> ⚠️ **And it retroactively disarms the 2024 evidence.** A 2024 HA record carrying `3ab284:…`
+> identifies *a unit running `57.0.2.0`*. It **cannot name a physical camera**, so it can neither
+> confirm nor refute which unit was paired then. See the pairing retraction below.
 >
 > ⚠️ **Until that is settled, treat `unique_id` as a firmware fingerprint.** The dependable handle
 > is the **real MAC from the DHCP reservation or the AP association list** — which is knowable
