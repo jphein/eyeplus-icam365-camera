@@ -126,8 +126,11 @@ That is decisive, and it closes the question three ways:
   [never happened](#-the-wan-window-was-run-the-cloud-bind-does-not-complete) — is evidently the
   thing that matters, not reaching the server.
 * **Both branches of the flash-commit hypothesis now have evidence.** `icam365-02`: locally
-  paired, non-durable. `icam365-01`: app-paired **with cloud** in 2024, surviving power cuts
-  since.
+  paired, non-durable. `icam365-01`: durable across a confirmed mains cut.
+  ⚠️ **This bullet used to read "`icam365-01`: app-paired with cloud in 2024" — that pairing
+  attribution is [retracted to unproven](../README.md#-retracted-2026-08-06-icam365-01-was-app-paired-in-2024-with-cloud).**
+  The *durability* is measured; the *reason* is not, and the firmware version is an untested
+  alternative explanation.
 
 ### The operational conclusion
 
@@ -141,12 +144,17 @@ The `icam365-01` half was **[I] inferred** for exactly one day, on the grounds t
 power-cycle the production camera to confirm it and a negative result would mean having broken it
 to find out. **It is no longer inferred — see immediately below.**
 
-### ✅ CONFIRMED [M]: an app-paired camera *does* survive a power cycle
+### ✅ CONFIRMED [M]: a camera *does* survive a power cycle
 
 **The experiment this project refused to run ran itself, 2026-08-06.** `icam365-01` — outdoors,
-production, app-paired with cloud in 2024 — went off-network unexpectedly and JP re-plugged it.
-The event was instrumented entirely from the infrastructure side, at zero risk to the camera,
-because the risky part had already happened:
+production — went off-network unexpectedly and JP re-plugged it. The event was instrumented
+entirely from the infrastructure side, at zero risk to the camera, because the risky part had
+already happened.
+
+> ⚠️ **This section previously said "app-paired with cloud in 2024" here.** That attribution is
+> **[retracted to unproven](../README.md#-retracted-2026-08-06-icam365-01-was-app-paired-in-2024-with-cloud)**
+> — HA's own device registry dates the 2024 record to the *other* identifier. The **outcome**
+> below is measured and unaffected; only the explanation for it was unsourced.
 
 | time | observation | source |
 |---|---|---|

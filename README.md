@@ -143,20 +143,48 @@ cause looks like an improvement.
 | MAC | `AA:BB:CC:DD:EE:01` | `AA:BB:CC:DD:EE:02` |
 | ONVIF `unique_id` | `3a80ec:…:3a80f1` | `3ab284:…:3ab289` |
 | Firmware | `57.0.8.0` | `57.0.2.0` — **older** |
-| Paired | 2024, **phone app, with cloud access** | today, **local `/setwifi`, `userid:"0"`** |
+| Paired | ⚠️ **unproven** — see the retraction below | **local `/setwifi`, `userid:"0"`** [M] |
 | **Role** | 🔴 **production — going outside, by the cars** | 🧪 **lab — expendable** |
 | Extra open port | — | `3576`, purpose unknown |
 | Aim | untouched — **PTZ allowed, but deliberate** ([why](docs/ptz.md#ptz-on-icam365-01-allowed-deliberately-jp-2026-08-06)) | ⚠️ needs physical re-aiming after PTZ testing |
 
-> ⚠️ **Identify these cameras by `unique_id`, never by serial or by "cam #N".**
+> ### ❌ RETRACTED 2026-08-06: "identify these cameras by `unique_id`"
 >
-> **Both units report the same placeholder serial** (`12345679890`), so the serial distinguishes
-> nothing.
+> This page used to say the `unique_id` was the one stable handle. **That advice is withdrawn,
+> and it may be actively dangerous at fleet scale.**
 >
-> And the informal numbering is **inconsistent across the source notes** — the same physical
-> camera has been called "cam #2" and "cam #1" in different sessions, and the newly provisioned
-> one has been both "cam #3" and "cam #2". The `unique_id` and the HA entry name are the only
-> stable handles. This page uses those.
+> **The `unique_id` is not a MAC address and probably not a device identity. [M]** Decode either
+> value and it is **six consecutive integers, every one of them larger than `0xff`**:
+>
+> ```
+> 3a80ec 3a80ed 3a80ee 3a80ef 3a80f0 3a80f1     <- deltas of exactly 1
+> 3ab284 3ab285 3ab286 3ab287 3ab288 3ab289
+> ```
+>
+> MAC octets cannot exceed `0xff`. These are **addresses**: the firmware formats
+> `&mac[0], &mac[1], …` — the locations of the buffer's bytes — instead of the bytes. The two
+> bases differ by `0x3198`.
+>
+> **[I] If that address is build-deterministic, `unique_id` identifies the *firmware*, not the
+> unit — and every camera on the same firmware reports the same one.** With 12 cameras that is
+> not an academic point: Home Assistant keys ONVIF devices on it.
+>
+> **What is measured so far [M]:** the value is **stable across a genuine cold boot** —
+> `icam365-01` returned the identical string after a confirmed mains cut — so it is deterministic
+> rather than per-boot noise. The two known units differ in `unique_id` **and** in firmware, so
+> that observation is equally consistent with either reading. **The discriminator is two units on
+> the same firmware, which has never been done.** It costs one read-only ONVIF call per unit.
+>
+> ⚠️ **Until that is settled, treat `unique_id` as a firmware fingerprint.** The dependable handle
+> is the **real MAC from the DHCP reservation or the AP association list** — which is knowable
+> from the network side and is genuinely per-unit. The serial is useless (**both units report the
+> same placeholder** `12345679890`), and the informal "cam #N" numbering is **inconsistent across
+> the source notes** — the same physical camera has been called "cam #1" and "cam #2" in
+> different sessions.
+>
+> **A parsing note that cost time:** the firmware emits `<tt:HwAddress >` — with a space inside
+> the tag. A regex for `HwAddress>` silently matches nothing, and a script that then reports
+> "changed" is reporting its own parse failure. Verify the artefact, not the exit code.
 
 ### 🔴 Operational rules — `icam365-01` is production
 
@@ -184,8 +212,38 @@ A natural experiment, now half-measured:
 
 | | Paired how | Survives a power cycle? |
 |---|---|---|
-| `icam365-01` | 2024, **phone app, with cloud** | **Yes** — [confirmed 2026-08-06, unattended](docs/provisioning.md#-confirmed-m-an-app-paired-camera-does-survive-a-power-cycle). **[M]** |
-| `icam365-02` | locally, **no cloud bind** | **No** — [confirmed on a single clean flip](docs/provisioning.md#-answered-it-is-not-durable-confirmed). **[M]** |
+| `icam365-01` | ⚠️ **unproven** (see below) | **Yes** — [confirmed 2026-08-06, unattended](docs/provisioning.md#-confirmed-m-a-camera-does-survive-a-power-cycle). **[M]** |
+| `icam365-02` | locally, **no cloud bind** [M] | **No** — [confirmed on a single clean flip](docs/provisioning.md#-answered-it-is-not-durable-confirmed). **[M]** |
+
+> ### ❌ RETRACTED 2026-08-06: "`icam365-01` was app-paired in 2024 with cloud"
+>
+> **The outcomes above are measured. The explanation for them is not, and the pairing attribution
+> that carried it has no source.**
+>
+> Home Assistant's own storage was read directly. **[M]**
+>
+> | HA device record | identifier | firmware | created |
+> |---|---|---|---|
+> | `icam365-02` | `3ab284:…` | `57.0.2.0` | **2024-09-22** — the original setup date |
+> | `icam365-01` | `3a80ec:…` | `57.0.8.0` | **2026-08-06** — today |
+>
+> **The only 2024-dated record carries the identifier `icam365-02` reports today**, and
+> `icam365-01` has no HA history before today at all. Nothing in this repo, or in HA, records
+> `icam365-01` being paired in 2024. The claim appears to have propagated from session notes.
+>
+> **This is not a correction to "it was actually `icam365-02`."** Because
+> [the identifier may be a firmware fingerprint](#-retracted-2026-08-06-identify-these-cameras-by-unique_id),
+> a 2024 record showing `3ab284:…` may mean only *"a unit running `57.0.2.0` was paired in 2024"*
+> — which does not name a physical camera at all. **Retracted to unproven, not to false.**
+>
+> ⚠️ **What this does to the durability story:** the cloud-bind hypothesis was the whole reason
+> for the rule *pair once with internet, then isolate*. It now rests on **zero measured positives**
+> — and the one unit we can date to a 2024 pairing is, on the most literal reading of the record,
+> the unit that **forgets**. The competing explanation (a persistence bug fixed between `57.0.2.0`
+> and `57.0.8.0`) is untested and explains every observation equally well.
+>
+> **Keep following the rule operationally** — it is cheap and the downside is a ladder — but stop
+> citing it as established. The experiment that settles it is [described here](docs/provisioning.md#-confirmed-m-a-camera-does-survive-a-power-cycle).
 
 So the constraint is real, and it has a usable shape:
 

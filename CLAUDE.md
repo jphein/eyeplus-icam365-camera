@@ -70,10 +70,13 @@ to the right ones.
   observing zero inbound cloud packets for 60 s.
 - **`nmap` is unreliable against these cameras** — one full sweep missed ports 80 and
   554 while both were in use. Probe named ports and confirm by connecting.
-- **Identify cameras by ONVIF `unique_id`.** Both units report the same placeholder
-  serial (`12345679890`), and the informal "cam #N" numbering is inconsistent across
-  source notes — the same physical camera has been called #1 and #2 in different
-  sessions.
+- **Identify cameras by the real MAC from the DHCP reservation or the AP association
+  list.** ❌ **The advice to use ONVIF `unique_id` is RETRACTED (2026-08-06)** — it decodes
+  to six *consecutive* integers each larger than `0xff`, so it is a formatted pointer, not
+  a MAC, and **[I]** is plausibly a per-firmware constant. If so, every camera on the same
+  firmware presents the same one. The serial is a shared placeholder (`12345679890`), and
+  the informal "cam #N" numbering is inconsistent across source notes — the same physical
+  camera has been called #1 and #2 in different sessions.
 
 Label every claim **measured** or **inferred**. The `icam365-01` persistence row is
 inferred on purpose — confirming it would mean breaking the production camera to learn
