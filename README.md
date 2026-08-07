@@ -26,6 +26,48 @@ Six independent confirmations, all measured:
 | ONVIF `GetProfiles` → `H264` | Both streams are **H.265** (`ffprobe`, and the SDP says `H265/90000`) |
 | SDP → `framesize 1280-720` | `ffprobe` measures **1920×1080** |
 
+### 🔑 Why — the founding rule now has an address in the firmware
+
+The rule above was established by six behavioural confirmations. Here is the **cause**, read out
+of `cgi_setwifi_handler` at **`0xe652d`** in the decompiled `p2pcam`: **[M] 2026-08-07**
+
+```
+0x0e65d0   bl 0xdb7d8    r1 = 0xc8  = HTTP 200      <- the response is sent HERE
+0x0e65d8   bl 0xb3928    r0 = 0x3e8 = 1000 ms       <- a one-second sleep
+0x0e65de   bl 0x92390    r0 = sp+8                  <- the worker that does the job runs HERE
+0x0e65e6   pop {r4,r5,pc}                           <- the worker's result is never read
+```
+
+The handler confirms four fields are **present** (`ssid`, `key`, `userid`, `bind_token` — each
+missing one is a `400`), replies `200`, sleeps a second, and only then hands the payload to a
+worker whose success or failure **it never learns and cannot report.**
+
+> 🔴 **The `200` is structurally incapable of describing the outcome.** It is emitted before the
+> work exists. Nothing downstream can make it meaningful.
+
+**This is not one endpoint's quirk — it is the shape of every accepted-but-inert case in this
+repo.** `SystemReboot` returning *"Rebooting in 90 seconds"* and never rebooting; `SET_ALARMLIGHT`
+acking on a device that reports `AlarmLight: No`; `ContinuousMove` returning a clean
+`ContinuousMoveResponse` on the cloudcam while the image does not move by a single pixel.
+**Validation and execution are separated by a reply.**
+
+**The corollary, and the reason this sits at the top:** on this firmware the only trustworthy
+evidence is an **observed effect**. That is not methodological caution — it is a statement about
+what the response bytes are capable of carrying.
+
+> ⚠️ **And the sharper form of the lesson, which cost this project the most time:** the check that
+> passes is usually *real*, and describes something genuinely true — just **adjacent to the
+> question asked.** A listening port really is listening; a `200` really did parse; a config file
+> really does contain the value written to it. **The status is not lying. It is answering a
+> different question** — which is exactly why it survives scrutiny.
+>
+> | affirmative signal | what it actually described |
+> |---|---|
+> | HTTP `200` from `/setwifi` | four fields were present |
+> | `LED_STATUS` status `0` | the command parsed |
+> | `dropbear` port listening, `ps` healthy | the daemon started — auth dies at connect time |
+> | a settings file reading back correctly | it was written; nothing had read it yet |
+
 Note the last two disagree *with each other* as well as with reality — ONVIF is right about the
 resolution and wrong about the codec, the SDP the other way round. **There is no single field you
 can trust by association with another.**
