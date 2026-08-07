@@ -149,6 +149,45 @@ different firmware, and only one of them holds a completed cloud bind.
   `nc -z`. Even then, keep it to one port at a time — a rapid six-port connect sweep was enough
   to make the HTTP servers stop answering for tens of seconds.
 
+## 🔴 A hardcoded credential shared across *silicon vendors* — not just this fleet
+
+**`p2pcam` carries a hardcoded `UID,SECRET` literal at a fixed offset in the executable.** One
+occurrence, inside the binary. **[M] 2026-08-06**
+
+**Per this repo's convention, the value is not recorded here, and it has not been written to any
+file, scratch note or message.** What follows is the mechanism only.
+
+| | |
+|---|---|
+| shape | a PPCS UID, a comma, then a **6-character uppercase secret** |
+| where | a compile-time string literal in the P2P daemon — **not** flash, **not** per-device |
+| **scope** | 🔴 **byte-identical in a binary from a DIFFERENT silicon vendor** |
+
+**The cross-vendor check is what makes this serious.** The same literal was found in `p2pcam`
+(Augentix HC1703, manufacturer `AJ`, fw `57.0.2.0`) **and** in `ipc` (a different SoC,
+manufacturer `RS`, fw `47.0.2.0`) — **compared by hash, never by value.** Two silicon vendors, two
+manufacturers, two firmware majors, one literal.
+
+> **That makes it an SDK-level credential, not a vendor's.** The exposure is a **class of
+> white-label devices**, not twelve cameras on one network. **It cannot be fixed by changing a
+> password on a camera**, and it cannot be fixed by any single vendor's update.
+
+⚠️ **[M] vs [I], stated precisely because the gap matters:** that the literal is present and
+identical in both binaries is **measured**. That it is an *authentication* key is **inferred** —
+from its position beside the UID and the `UID,SECRET` format the P2P layer uses. **Nobody has
+tested whether it authenticates anything.** Testing it would require the vendor cloud, which is
+exactly the thing not to do unilaterally, so it stays inferred.
+
+🔑 **Why this is worse than the LAN-only issues above.** Everything else on this page needs an
+attacker already on the camera VLAN. **A PPCS UID plus its key reaches a camera through the vendor
+cloud from anywhere on the internet** — if the inference holds. **The WAN default-deny is what
+makes that unreachable here**, which promotes it from a policy preference to a control.
+
+**Also relevant, and independently measured:** the *UID* is likewise a hardcoded literal, which is
+why three cameras across two product families report a byte-identical UID. **Every identity field
+these devices offer is a shared constant** — serial, `HwAddress`, `HardwareId`, and now the UID.
+Identity comes from the DHCP reservation or `fleet.yaml`, full stop.
+
 ## What actually protects these
 
 **The camera VLAN's isolation, and the default-deny to WAN.** That is the whole control set.
