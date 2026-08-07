@@ -197,6 +197,59 @@ pointing at a plausible-looking neighbouring row — the kind of error that surv
 because the wrong line still reads sensibly. Re-read a citation against the file *after* drafting,
 not while.
 
+## 🚫 The observer was making the signal
+
+**The hardest confound of the day, and it came from our own tooling.** [M]
+
+A speaker command was sent to a camera and a human reported hearing sound. It was recorded as a
+confirmation — **twice**, and withdrawn twice.
+
+| what was **sent** | what the human **heard** |
+|---|---|
+| three 1 kHz beeps + one 440 Hz tone. Nothing else — verified by reading the generator, not from memory | music, tones, **and a spoken phrase containing his own name** |
+
+**Three sounds reported, one emitted.** At least two other sources were live in the same room: a
+*different camera* whose speaker was being worked on in a parallel session, and — the
+uncomfortable one — **the agents' own text-to-speech narration playing through the workstation
+speakers a few metres away.**
+
+> ### 🔑 Occurrence is not attribution. Verify **location**, not just that the signal happened.
+>
+> Every version of *"did you hear it?"*, and even *"what did you hear?"*, asks the wrong question.
+> The right one is **"did it come from the camera, or from the computer?"** — and the cheap
+> instrument is a person putting an ear next to the device.
+
+**What made this genuinely hard is that the second claim looked airtight.** The reported phrase was
+content that had *never been described to the listener* — apparently perfect unleakable evidence.
+It was still wrong, because:
+
+> **Unleaked content is necessary and not sufficient. Evidence has to be tied to the transmitter as
+> well as to the receiver — what was sent, and when.** Nobody checked that the described sound was
+> the emitted sound. It wasn't.
+
+**Three fixes, all cheap, and they compose:**
+
+1. **Enumerate the other sources first.** Before trusting a human observer, list everything in the
+   room that can produce the signal you are looking for — **including your own tooling.** An agent
+   narrating its progress out loud is an experimental contaminant when the experiment is "does this
+   device make a noise."
+2. **Anchor in time.** These cameras expose a monotonic uptime counter, which places a transmission
+   to the second. Ask the observer to say *"now"*, and *"I heard beeps"* becomes *"I heard beeps
+   inside the 40-second window in which beeps were transmitted"* — which an ambient source cannot
+   fake.
+3. **Do not let the operator brief the content.** Whoever relays "listen for X" has leaked the
+   answer key. Have the transmitter choose a pattern, withhold it from the relay, and compare
+   afterwards.
+
+**The pattern-not-yes-no protocol worked and is why this was caught at all.** The observer
+volunteered the word *"music"* before any briefing — and nobody hearing three beeps and a tone
+calls that music. **The mismatch was visible in his own words.** A yes/no question would have
+returned "yes" both times.
+
+⚠️ **And note who made the error: the person enforcing this rule on everyone else, twice in one
+hour.** That is the argument for the guard being **procedural rather than a matter of care.**
+Nobody is careful enough to catch this reliably.
+
 ## See also
 
 * [security.md](security.md) — what the write-probe did to a camera
