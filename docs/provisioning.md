@@ -30,6 +30,96 @@ and the address it is added on is effectively permanent.
 
 `:20202` **stays open after pairing** — see [security.md](security.md).
 
+## 🔑 SOLVED — the firmware DELETES the WiFi config on purpose
+
+**These cameras are not failing to save their WiFi. `/p2pcam/p2pcam` calls `remove()` on eleven
+`/home` paths, including `wpa_supplicant.conf` and *both copies* of `devParam.dat` and
+`extraParam.dat`. It wipes the primary store and both backups.** **[M] 2026-08-06**, found by
+disassembling the vendor binary and confirmed against the flash.
+
+> ### The single fact that explains two days of confusion
+>
+> **The wipe runs while the camera is up, with `wpa_supplicant` still holding the credentials in
+> RAM. The unit stays online and healthy afterwards.** [M]
+>
+> **So the power cycle never caused the failure — it only revealed it.** The fault is *latent*,
+> not flaky. That is why it was never reproducible, why "this unit survived a reboot today" kept
+> seeming to contradict the rule, and why it proves nothing about tomorrow.
+
+### The proof: the flash journal caught it in the act
+
+Parsed at the jffs2 **dirent** level from a full flash dump (metadata only — no file contents
+read, no credential touched). jffs2 writes `ino=0` on unlink, so its log is an audit trail: [M]
+
+* **Six creations in one unbroken version run (107–112); six deletions in another (119–124)** —
+  two atomic bursts.
+* **The deletion order matches the `remove()` call order in the binary exactly**, and the five
+  paths that leave *no* record are precisely the ones that did not exist. Consistent including
+  the absences.
+* **Nothing written afterwards** — that unit was running with no WiFi config on flash at all.
+
+Independently confirmed by mounting the image read-only through `mtdram` and letting the kernel
+replay the journal. **This rules out every benign explanation**: not garbage collection, not an
+uncommitted write buffer, not free-space exhaustion, not a missing `sync`.
+
+### ❌ RETRACTED: "every unit needs one supervised, internet-connected app pairing"
+
+**The rule this project was organised around is not supported.** It rested on a
+[flash-commit hypothesis](#the-leading-hypothesis-and-why-it-matters-so-much) — that credentials
+are only written once a cloud bind completes. **That is disproved: they are written to flash
+immediately and correctly, and deleted later.** [M]
+
+**There are at least seven call sites into the wipe. Only one involves an account.** Two are
+counter-driven (`counter > 5`) and need **neither a human nor the cloud**, and `doDevRebootReset`
+wipes on *both* branches — its argument does not gate it. **A cloud binding cannot protect against
+the six non-account paths.**
+
+⚠️ This also **defuses the firmware confound** that blocked the durability question all day: the
+difference between two units may simply be **whether the wipe has fired yet**.
+
+### ❌ RETRACTED: `no_cfg_reboot_time` is a red herring
+
+It looked like the mechanism — a counter, two bytes, sitting beside the WiFi config, on a device
+documented to revert to AP mode. **It is written only by `/bak/factory_tool.sh`** and counts boots
+where the SD card carried no `*-hwcfg.ini`; after five it deletes `/home/hwcfg_bak.ini`. It is one
+of four identical counters. **`cfg` means `hwcfg.ini`, not "configuration".** [M]
+
+> **The name matched the hypothesis and the code did not.** Same shape as
+> [a matching symptom is not a confirmed mechanism](../README.md#the-sibling-rule-learned-on-the-anyka-camera-a-broken-thing-may-be-load-bearing).
+
+### ✅ The fix — survive the wipe rather than prevent it
+
+The wipe removes eleven **specific paths**. It never does `rm -rf /home`, and **never touches
+`/bak`**. And the vendor's own boot script calls a hook that does not exist:
+
+```
+start.sh:65   /bak/custom_init.sh        <- exists. 🔴 DO NOT TOUCH: drives the WiFi power GPIO
+start.sh:67   /bak/custom_pre_init.sh    <- DOES NOT EXIST on stock units. A free hook.
+```
+
+`custom_pre_init.sh` runs **before the WiFi driver loads** and long before `p2pcam` starts. A
+script there keeps a copy of the six files under a name the wipe does not know
+(`/home/.wifikeep`) and restores them at boot. **No vendor file is modified.**
+
+🔴 **Note which hook was NOT used.** `custom_init.sh` is the obvious place and it drives the
+**WiFi power GPIO** — editing it is this repo's signature hazard sitting directly beside the
+correct answer.
+
+**Verified on live flash, not simulated:** [M] all six files moved away on a real `/home` — the
+camera **stayed online**, demonstrating the finding itself — then restored **6/6 byte-identical**,
+modes preserved, idempotent on a second run. Free space went *up* (`132 KB` → `156 KB`), jffs2
+having compacted the mostly-zero blobs.
+
+⚠️ **The backup is per-unit, not fleet-wide** — `devParam.dat` carries device identity.
+
+❓ **One link is inference, not measurement:** whether `p2pcam` accepts a restored `devParam.dat`
+across a real reboot. The bytes are provably identical before `p2pcam` starts and its checksum is
+in-file, so the risk is low — but **one reboot would settle it.**
+
+🔑 **Fleet consequence:** the same restore in the SD-card payload lets a card **self-heal a camera
+that has already lost its config** — recovering an orphaned unit at boot, with no ladder and no
+AP-mode re-provisioning.
+
 ## 🔴 Provisioning does not survive a power cycle
 
 **This is the blocker for any outdoor deployment. It is confirmed, and its cause is still open.**

@@ -109,8 +109,10 @@ If another agent is working a camera, coordinate or wait. Announce writes.
   (gitignored, identity-of-record for all nodes) — never from this repo.
 - `docs/` holds current facts. `notes/` is session history, kept deliberately —
   **prefer `docs/` and don't "reconcile" notes into it.**
-- **There is no git remote.** Commits are local only; nothing is backed up off this
-  machine. Don't assume a push target exists.
+- **There IS a git remote** — `github.com/jphein/eyeplus-icam365-camera` (corrected 2026-08-06;
+  this line previously said there was none, and an agent acted on that). **The repo is public, so
+  the stand-in convention above is load-bearing, not cosmetic.** ⚠️ Its first two commits contain
+  real addresses and a MAC from before the scrub — known, unresolved, and no credentials.
 - Conventional commits, small and recoverable. Use **`git commit -o <path>...`** rather
   than `git add` — with concurrent agents the index is shared and another agent's work
   will ride along under your message.
