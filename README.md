@@ -345,6 +345,9 @@ invites the reader to fill gaps by pattern, so a gap must look like one.
 | **ONVIF firmware** | **`57.0.8.0`** | `57.0.2.0` | `57.0.2.0` | **`47.0.2.0`** |
 | Manufacturer / model | `EYEPLUS` / `EYEPLUS_DEV` | same | same | **`ONVIF` / `cloudCam`** |
 | **SoC** | Augentix `HC1703` | Augentix `HC1703` | Augentix `HC1703` | **[I] `xm7205v500`** — *not* Augentix |
+| **CPU clock** | **1008 MHz** | **1008 MHz** | **1008 MHz** | **`[?]`** — see note |
+| `Hardware:` string | `Augentix HC1703…` | same | same | 🔴 **`Generic DT based system`** |
+| BogoMIPS | 20160.00 | 20160.00 | 20160.00 | **100.00** |
 | Kernel | Linux **3.18.31** | **3.18.31** | **3.18.31** | **4.9.37** |
 | BusyBox | v1.33.0 | v1.33.0 | v1.33.0 | **v1.26.2** |
 | RAM | 60.5 MB | 60.5 MB | 60.5 MB | **34.9 MB** |
@@ -352,13 +355,64 @@ invites the reader to fill gaps by pattern, so a gap must look like one.
 | UART device | `ttyAS0` | `ttyAS0` | `ttyAS0` | **`ttyAMA0`** |
 | Writable | `/home` + `/bak` | `/home` + `/bak` | `/home` + `/bak` | **`/home` only** |
 | `p2pcam` binary | 3,689,784 B, **Sep 2024** | 3,702,748 B, **Mar 2024** | `[?]` | `[?]` |
-| **Clock** | ✅ **real wall-clock time** | ❌ epoch — an uptime counter | ❌ epoch | ❌ epoch *(now set by card)* |
-| **Burnt-in OSD date** | ✅ correct | 🔴 `1970-01-01` | 🔴 `1969-12-31` | ✅ *set by card* |
+| **Clock** | 🔴 **plausible but ~12 h STALE** — restored at boot from a checkpoint, *not* real time | ❌ epoch — an uptime counter | ❌ epoch | ❌ epoch *(now set by card)* |
+| **Burnt-in OSD date** | 🔴 **looks correct, is not** | 🔴 `1970-01-01` | 🔴 `1969-12-31` | ✅ *set by card* |
+| **Unit status** | 🔴 **DESTROYED 2026-08-06** — hardware failure | in service | in service | in service |
 | Answers PPCS `LanSearch` | ❌ **no** | ✅ yes | ✅ yes | `[?]` |
 | **Root shell** | ✅ telnet + **SSH** | ✅ telnet | ✅ telnet + **SSH** | ✅ telnet |
 | **Root survives reboot** | installed, `[?]` | ✅ **PROVEN** — returned with no card | installed, `[?]` | ❌ **no** |
 | Lenses | 1 | 1 | 1 | **2** — [only one reachable](#-these-cameras-are-not-one-platform--they-are-at-least-two-silicon-vendors) |
 | **Has lost its WiFi config** | ❌ never observed | ✅ yes, repeatedly | ✅ yes | ✅ yes |
+
+> ### 🔴 There is no real-time clock on this hardware — and the "good" clock is the dangerous one
+>
+> **[M]** `/dev/rtc`, `/dev/rtc0`, `/dev/misc/rtc`, `hwclock`, `/proc/driver/rtc` and
+> **`/sys/class/rtc`** are *all* absent — the kernel has no RTC class at all. `p2pcam` contains
+> the strings `/dev/rtc` and `/dev/misc/rtc`: **the code expects a clock chip the board does not
+> have.** (A string in a binary is not a device — the same lesson as `which`, one layer down.)
+>
+> With no battery-backed clock and no NTP, each firmware papers over the missing part differently:
+>
+> | | `57.0.2.0` | `57.0.8.0` |
+> |---|---|---|
+> | strategy | none — starts at zero | checkpoints `date +%s` to `/home/reboot.time` every **600 s**, restores it at boot |
+> | reads | **`1970`** — obviously wrong | **a plausible 2026 date that is ~12 h behind** |
+>
+> 🔴 **The unit that looked correct was the worst one.** A camera stamping `1970` is visibly
+> broken and nobody trusts it. One stamping a plausible date is *silently* wrong by half a day —
+> and for a driveway camera with any evidentiary use, that is the failure that costs you
+> something. **This table previously recorded `icam365-01` as having "real wall-clock time". It
+> did not, and that entry is corrected above.**
+>
+> ⚠️ **Not fixable by firmware** — an update cannot add a clock chip. An earlier note calling the
+> `1970` problem "firmware-fixable" is **RETRACTED**. The only route to correct time is a network
+> time source this firmware does not implement.
+>
+> ⚠️ The checkpoint also writes NOR flash (`mtd4`) **every 600 s forever** — ~52k writes/year that
+> nobody chose, purely to fake an RTC.
+
+> ### How to read the CPU clock — and why one column is `[?]`
+>
+> There is **no `cpufreq` sysfs on any of these units**, so the usual `scaling_cur_freq` route
+> returns nothing. The clock lives in the **device tree** as a 4-byte big-endian cell:
+>
+> ```sh
+> # convert on the DEVICE — reading the raw bytes over telnet returns the command echo
+> for i in 0 1 2 3; do printf 'B%s=%d;' $i "'$(dd if=/proc/device-tree/cpus/cpu@0/clock-frequency \
+>     bs=1 skip=$i count=1 2>/dev/null)"; done
+> ```
+>
+> **`0x3C14DC00` = 1,008,000,000 Hz = 1008 MHz**, identical on all three Augentix units **[M]**.
+>
+> ⚠️ **`BogoMIPS` is not the clock.** These report **20160**, which is 20× the clock — it is
+> derived from the ARM architected timer, not the CPU. Treating it as a frequency gives an answer
+> that is wrong by a factor of twenty and looks authoritative.
+>
+> 🔴 **`cloudcam-01` is `[?]`, not zero.** The same read returned **28 Hz**, which is not a
+> plausible clock — a parse artefact, recorded as unknown rather than published as a number. Its
+> `Hardware:` line is the useless `Generic DT based system` and its BogoMIPS is **100.00** against
+> the others' 20160, so it is a different SoC by two independent signals. **The 1008 MHz figure
+> must not be carried across to it.**
 
 > ### 🔴 The firmware split is a confound, not an explanation
 >
@@ -635,7 +689,7 @@ method in [docs/root-access.md](docs/root-access.md).
 | **Board** | **`HC1703L-TB008-NOR-8MB`** — from the device tree `model` |
 | **CPU** | **1 core**, ARM **Cortex-A7** (ARMv7l, `0xc07` rev 5). BogoMIPS **20160** |
 | CPU features | `neon vfpv3 vfpv4 vfpd32 idiva idivt lpae thumb edsp evtstrm` |
-| Clock speed | **[?]** — no `cpufreq` sysfs, nothing in the boot log |
+| **Clock speed** | 🔑 **1008 MHz** (`1,008,000,000` Hz) **[M]** — identical on all three Augentix units. Read from the **device tree**, `/proc/device-tree/cpus/cpu@0/clock-frequency`, as a 4-byte big-endian cell. ⚠️ There is **no `cpufreq` sysfs at all** on this kernel (`/sys/devices/system/cpu/cpu0/cpufreq/` does not exist), so the clock is **fixed** — no scaling, no governor, no boost |
 | **RAM** | **61,968 kB total** (~60.5 MiB usable of a 64 MB part). ~1.6 MB free at rest |
 | **Flash** | **8 MB NOR**, 64 KB erase blocks, 6 MTD partitions |
 | Removable storage | **microSD** — `mmcblk0`, and the camera records video to it |
