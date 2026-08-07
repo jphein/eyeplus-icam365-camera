@@ -135,6 +135,7 @@ cause looks like an improvement.
 | ❌ Motion events | [Structurally impossible over ONVIF](docs/ai-and-events.md) — though a **`tMotDet` thread runs on the device** |
 | ❌ AI detection / auto-tracking | Exists in hardware, [reachable only over the vendor P2P channel](docs/ai-and-events.md#where-the-features-actually-live) |
 | ❌ Reboot | ONVIF `SystemReboot` is a **no-op** — but a `tReboot` thread exists, so it is a wiring gap, not a missing capability |
+| ✅ **Root shell** | 🔑 **[SD card, one boot, no soldering](docs/root-access.md)** — the firmware execs `/mnt/debug_cmd.sh` as **uid=0** at boot. Linux 3.18.31, ARMv7 Cortex-A7, BusyBox 1.33 |
 | ❌ Authentication | On anything. See [security.md](docs/security.md) |
 
 ## The two cameras
@@ -736,6 +737,7 @@ ffprobe -rtsp_transport tcp rtsp://192.168.1.21:554/0/av1    # sub    640x360
 |---|---|
 | [docs/security.md](docs/security.md) | 🔴 **Read first** — unauthenticated credential disclosure, and the `:6670` debug console |
 | [docs/driving-the-camera.md](docs/driving-the-camera.md) | 🔑 **How to actually drive one** — the PPCS session, and the three capabilities ONVIF cannot reach |
+| [docs/root-access.md](docs/root-access.md) | 🔑 **Root shell via SD card** — and what the platform turned out to be |
 | [docs/onvif.md](docs/onvif.md) | ONVIF support matrix, and everything it misreports |
 | [docs/vendor-api.md](docs/vendor-api.md) | `:8001`, the port map, and why nmap lies here |
 | [docs/ptz.md](docs/ptz.md) | PTZ — and why testing it permanently changes the aim |
