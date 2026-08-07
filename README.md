@@ -576,6 +576,66 @@ units, and why this project had to find `:8001` by hand.
 firmwares commonly refuse to light an IR lamp while the ambient sensor reads "day". A post-dusk
 re-test is worthwhile.
 
+### Platform internals — read off a live root shell
+
+**Everything here was unknown until an SD card produced a root shell. [M]** Full detail and the
+method in [docs/root-access.md](docs/root-access.md).
+
+| | |
+|---|---|
+| Kernel | **Linux 3.18.31** (ARMv7 Cortex-A7, `CPU part 0xc07`, NEON + VFPv4) |
+| Userland | **BusyBox v1.33.0** — no `strings`, `od`, `hexdump`, `base64` or `nc` |
+| init | BusyBox init → `/etc/inittab` → `/etc/init.d/rcS` |
+| Root filesystem | **squashfs, read-only, 1.3 MB, 100 % full** |
+| Flash | **~8 MB NOR**, 64 KB erase blocks, 6 MTD partitions |
+| Serial console | present in `inittab` but **commented out** (`ttyAS0`) |
+| A sibling model | **Linux 4.9.37**, 5 partitions — [same boot hook](docs/root-access.md) |
+
+```
+mtd0 "boot"    256 KB      mtd3 "rootfs"  1.25 MB   -> squashfs, ro
+mtd1 "bootenv"  64 KB  <-  mtd4 "home"     384 KB   -> jffs2, rw, 66% full
+mtd2 "linux"   1.5 MB      mtd5 "bak"      4.6 MB   -> jffs2, ro, factory backup
+```
+
+> 🔑 **The writable surface is one 384 KB partition.** `/` is read-only squashfs and `/opt`,
+> `/tmp` and `/run` are tmpfs — so **everything a camera remembers lives in `/home`**, and it has
+> **132 KB free**.
+
+### 🔴 Where a camera's identity and WiFi actually live
+
+`/home`, on `mtd4`, JFFS2, read-write — **genuinely persistent, not a RAM disk.** [M]
+
+| file | size | what it is |
+|---|---|---|
+| **`wpa_supplicant.conf`** | 195 B | ✅ **the WiFi credentials** — a plain, standard wpa_supplicant file (`ssid`, `psk`, `key_mgmt`) |
+| **`tange.dat`** | 66 B | binary — **[I]** the vendor/cloud binding |
+| `devParam.dat` (+`_bak`) | 1004 B | binary blob, mode `000`. Not text; no readable fields |
+| `extraParam.dat` (+`_bak`) | 5120 B | binary blob, mode `000` |
+| `hwcfg_bak.ini` | 192 B | hardware config |
+| `ptz_bak.cfg` | 127 B | **[I]** PTZ state — worth reading, given there is no position feedback over any protocol |
+| **`no_cfg_reboot_time`** | 2 B | **a counter, currently `0`** |
+| `no_ptz_reboot_time` | 2 B | a counter, currently `0` |
+| `psp.dat` | 20 B | unknown |
+
+> ### 🔑 This reframes the durability question the whole project has been chasing
+>
+> **The WiFi credentials are stored as a plain file on persistent flash.** They are not held in
+> RAM, and they are not hidden inside the cloud binding — so *"the camera forgot its WiFi"* cannot
+> simply mean "it was never saved."
+>
+> ⚠️ **And note the timestamps:** `wpa_supplicant.conf` and `tange.dat` are dated **one minute
+> later** than every other file in `/home` — i.e. **written during provisioning**, not at
+> manufacture. The rest predate them.
+>
+> 🔴 **`no_cfg_reboot_time` is the lead worth pulling.** A counter with that name, next to the WiFi
+> config, on a device documented to
+> [revert to AP mode after boots without a configuration](docs/provisioning.md), is very likely the
+> mechanism — and it would also explain the vendor's documented multi-power-cycle factory reset.
+> **[I], and now cheaply testable with a shell:** read it, power-cycle, read it again.
+>
+> **None of this was reachable over any network protocol.** The question drove this entire project
+> and the answer was always a 195-byte text file on a 384 KB partition.
+
 ### Network and protocols
 
 | Port | Service | Auth | |
