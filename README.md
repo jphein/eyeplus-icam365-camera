@@ -583,7 +583,7 @@ method in [docs/root-access.md](docs/root-access.md).
 
 | | |
 |---|---|
-| **SoC** | 🔑 **Augentix HC1703L** — family `hc1703_1723_1753_1783s`. **Not** any of the Goke / HiSilicon / SigmaStar / Ingenic candidates the external research pointed at |
+| **SoC** | 🔑 **Augentix HC1703L** on the EYEPLUS units — family `hc1703_1723_1753_1783s`. **Not** any of the Goke / HiSilicon / SigmaStar / Ingenic candidates the external research pointed at. ⚠️ **A sibling model runs different silicon entirely — see below** |
 | **Board** | **`HC1703L-TB008-NOR-8MB`** — from the device tree `model` |
 | **CPU** | **1 core**, ARM **Cortex-A7** (ARMv7l, `0xc07` rev 5). BogoMIPS **20160** |
 | CPU features | `neon vfpv3 vfpv4 vfpd32 idiva idivt lpae thumb edsp evtstrm` |
@@ -599,6 +599,34 @@ method in [docs/root-access.md](docs/root-access.md).
 | Flash | **~8 MB NOR**, 64 KB erase blocks, 6 MTD partitions |
 | Serial console | present in `inittab` but **commented out** (`ttyAS0`) |
 | A sibling model | **Linux 4.9.37**, 5 partitions — [same boot hook](docs/root-access.md) |
+
+> ### 🔴 These cameras are not one platform — they are at least two silicon vendors
+>
+> **[M]** on two EYEPLUS units, **[I]** on the sibling:
+>
+> | unit | `/proc/cpuinfo` `Hardware:` | vendor syscall binary | SoC |
+> |---|---|---|---|
+> | `icam365-02` | `Augentix HC1703_1723_1753_1783s family` | `/bin/rsyscall.hc1703` | **Augentix HC1703** **[M]** |
+> | `icam365-wall` | same | same | **Augentix HC1703** **[M]** |
+> | `cloudcam-01` | 🔴 **`Generic DT based system`** — useless | **`/home/rsyscall.xm7205v500`** | **[I] `xm7205v500`** |
+>
+> ⚠️ **The chip name is inferred from a filename, not read from a register.** `/home/CHIP_NAME` on
+> that unit is 11 bytes, which fits `xm7205v500` plus a newline — but it equally fits
+> `gk7205v300`, so **the byte count corroborates nothing.** One `cat` closes it and it has not
+> been run.
+>
+> 🔑 **This makes the SD-card root result stronger, not weaker.** The same
+> [`/mnt/debug_cmd.sh` hook](docs/root-access.md) fires across **different silicon vendors**, not
+> merely different products from one house — which is the best possible basis for expecting it on
+> units bought later, from another seller, carrying another chip.
+>
+> ✅ **A free SoC fingerprint for any newly-rooted unit**, and it works where the obvious method
+> fails — `cloudcam-01`'s `Hardware:` line is the useless `Generic DT based system`, yet its
+> `rsyscall` filename names the chip anyway:
+>
+> ```sh
+> grep Hardware /proc/cpuinfo; ls /bin /home /home/bin 2>/dev/null | grep -i rsyscall; cat /home/CHIP_NAME 2>/dev/null
+> ```
 
 #### On-chip hardware blocks — what the silicon actually provides
 
