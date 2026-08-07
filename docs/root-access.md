@@ -82,6 +82,7 @@ Every one of these was an open question before the card, and several had been gu
 
 | | |
 |---|---|
+| **SoC** | 🔑 **`Augentix HC1703_1723_1753_1783s family`** — from `/proc/cpuinfo` `Hardware:` |
 | Kernel | **Linux 3.18.31**, built 2024-02-28 |
 | CPU | **ARMv7 Cortex-A7** (`CPU part 0xc07`), rev 5, NEON + VFPv4 |
 | userland | **BusyBox v1.33.0** (2023-02-08) |
@@ -96,6 +97,47 @@ Every one of these was an open question before the card, and several had been gu
 > The kernel banner confirms it. **The retraction was right, and the reasoning that produced it —
 > asking what the observation would look like under the competing hypothesis — is the transferable
 > part.**
+
+### 🔑 The SoC is Augentix — and every external guess was wrong
+
+```
+Hardware : Augentix HC1703_1723_1753_1783s family
+```
+
+**[M]**, read from `/proc/cpuinfo` on a live shell. Corroborated on the same box by a vendor
+binary named **`rsyscall.hc1703`**.
+
+**This closes a question that weeks of external research could not.** Prior art on the
+`TAS-Tech`/`Ginatex` firmware strings pointed at a **Goke GK7102** lineage, and the candidate list
+that had been reasoned toward was Goke / HiSilicon / SigmaStar / Ingenic. **It is none of them.**
+Augentix is a Taiwanese ISP-SoC vendor that never appeared in any of the research.
+
+> **The transferable point is about method, not silicon.** The platform was inferred for a long
+> time from *vendor strings in HTTP headers* — the most visible evidence available, and the most
+> derivative. **One `cat` of `/proc/cpuinfo` settled it.** Where an identification rests on
+> fingerprints of fingerprints, the cheap direct read is worth more than any amount of
+> triangulation — and here it was one boot away the whole time.
+
+⚠️ **Consequence for tooling:** anything written for Goke/HiSilicon boards — GPIO numbers, flash
+recipes, published `gio` values — **does not transfer.** Enumerate on the device.
+
+### Vendor tooling on the box
+
+Alongside BusyBox, the rootfs carries the vendor's own binaries. **[M]**
+
+| binary | what it is |
+|---|---|
+| **`gio`** | GPIO tool — opens `/dev/gio` (`/dev/gio open suc`). **[I]** the documented route to **IR-cut and IR LED** control on this family. ⚠️ **Segfaults with no arguments and with `-g`** — it wants a specific form, and published GPIO numbers are board-specific. **Enumerate before actuating.** |
+| **`ptz_test`** | vendor PTZ utility — of interest given there is *no* position feedback over any network protocol |
+| **`debugTool`** | unexamined; the name is self-recommending |
+| 🔴 **`sdc_tool`** | **the SD-card firmware flasher.** This is the binary behind the `firmware.bin` brick hazard at the top of this page |
+| `httpclt`, `tees` | vendor HTTP client / tee |
+| `wpa_supplicant`, `wpa_cli`, `hostapd` | stock WiFi stack — consistent with the credentials being a plain `wpa_supplicant.conf` |
+
+⚠️ **Applet availability differs between units, which matters when writing scripts for the fleet.**
+This unit has `hexdump`, `hd`, `nc` and `id`; the wall unit had none of `strings`, `od`,
+`hexdump`, `base64` or `nc`, and lacked `basename`. **Probe, do not assume** — a script that works
+on one camera can silently do nothing on another.
 
 ### Flash layout — NOR, ~8 MB, with a factory backup partition
 

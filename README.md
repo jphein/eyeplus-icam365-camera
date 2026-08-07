@@ -583,6 +583,7 @@ method in [docs/root-access.md](docs/root-access.md).
 
 | | |
 |---|---|
+| **SoC** | 🔑 **`Augentix HC1703_1723_1753_1783s family`** — measured, and **not** any of the Goke / HiSilicon / Ingenic candidates the external research pointed at |
 | Kernel | **Linux 3.18.31** (ARMv7 Cortex-A7, `CPU part 0xc07`, NEON + VFPv4) |
 | Userland | **BusyBox v1.33.0** — no `strings`, `od`, `hexdump`, `base64` or `nc` |
 | init | BusyBox init → `/etc/inittab` → `/etc/init.d/rcS` |
