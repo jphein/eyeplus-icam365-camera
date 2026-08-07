@@ -148,6 +148,54 @@ bucket on this hardware** — and never conclude a port is closed from a sweep a
 > the hardware. **Three numbers would have cost nine characters.** Where a claim rests on a
 > comparison, write down what was compared.
 
+### 🔑 The header is **12 bytes**, not 8 — measured
+
+The framing recorded below is incomplete. Measured against `id=1`, which has a *known* reply, so a
+well-formed message is positively identifiable rather than inferred from silence: **[M]**
+
+| payload bytes | `total_len` | result |
+|---|---|---|
+| 0, 1, 2, 3 | 8–11 | **TCP RST** |
+| **4, 5, 6** | **12–14** | ✅ `unknown comd 1.` |
+
+**A hard cutoff at exactly four.** So:
+
+```
+[4B BE total_len][4B BE command id][4B BE arg0][... optional further payload]
+total_len >= 12
+```
+
+**[I]** `arg0` is a mandatory third header field, not "payload". That explains the original failed
+sweep more cleanly than *"a payload is required"* did: **an 8-byte frame is not a short message, it
+is an incomplete one.**
+
+### ❌ RETRACTED: "ids 6–14 are recognised commands that need real arguments"
+
+**Enumerated and refuted. [M]** Ten payload shapes on `id=6` — 1/4/8 NUL bytes, BE int, LE int,
+`?`, `help`, `-h`, `usage`, `0xFFFFFFFF` — plus three shapes across ids 7–14. **Every one returned
+an empty reply with a clean EOF. Not one error string, not one usage line.** Interleaved `id=1`
+controls returned `unknown comd 1.` before, between and after, so this is **real silence from a
+live socket**, not a dead connection.
+
+**An argument-hungry command that never complains under ten inputs, including three help tokens, is
+not the simplest explanation.** Retracted to unproven.
+
+> 🔑 **The better hypothesis, and it is evidence-backed rather than a guess: their output goes to
+> the debug console, not to the socket.**
+>
+> * **The recognised set is sparse, not a range** — `0, 1, 4` → `unknown comd`; `2, 3, 5, 6…14` →
+>   recognised. **A bounds check cannot produce holes at 0, 1 and 4**, so those nine have genuine
+>   per-id handler entries. [M]
+> * Writing to the socket is clearly possible — `id=2` and `id=3` do it at length. [M]
+> * **`id=5` is literally `redirectionOutput`.**
+>
+> A console whose commands print to serial, plus one command to redirect that output, is an
+> entirely ordinary design. **So `redirectionOutput` is most likely the enabler for the other nine
+> rather than one more command beside them.**
+>
+> ⚠️ `redirectionOutput` returns `-3` for `arg0 = 0` — **[I]** an *invalid target value* rather than
+> a missing argument, i.e. the call was well-formed and the value rejected. Not yet actuated.
+
 Framing was recorded as:
 
 ```
