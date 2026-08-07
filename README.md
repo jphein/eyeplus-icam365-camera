@@ -506,8 +506,8 @@ units, and why this project had to find `:8001` by hand.
 | | | |
 |---|---|---|
 | Brightness / contrast / saturation / exposure / focus / white balance | ❌ **no imaging control at all.** `GetImagingSettings` and `SetImagingSettings` are **HTTP 400 — absent**, despite the Imaging service being advertised with its own XAddr | **[M]** |
-| IR-cut filter | ✅ hardware present, **`tIcrCtrlThread` runs**; ❌ no ONVIF control — ✅ **but see below: it IS controllable over the vendor channel** | **[M]** |
-| IR LEDs | ✅ hardware present; ❌ no auxiliary command, no imaging extension | **[M]** |
+| IR-cut filter | ✅ hardware present, **`tIcrCtrlThread` runs**; ❌ no ONVIF control — ✅ **controllable over the vendor channel**, below | **[M]** |
+| **Illuminators** | ✅ **an IR array AND a white floodlight.** ❌ no ONVIF control — ✅ **`SET_DOUBLELIGHT` (32788) drives them**, below | **[M]** |
 | Day/night switching | ✅ **controllable — measured** (vendor channel, below) | **[M]** |
 | OSD / text overlay | ❌ `GetOSDs`, `SetOSD`, `CreateOSD`, `DeleteOSD` all decline | **[M]** |
 
@@ -538,6 +538,38 @@ units, and why this project had to find `:8001` by hand.
 > 🔑 **And the instrument mattered more than the command.** The earlier ONVIF-lane IR sweep used a
 > **greyscale** metric — and the entire effect here *is the loss of colour*. **That instrument
 > could not have detected this even if pointed straight at it.** Saturation was the right measure.
+
+> ### ✅ SOLVED — the illuminators are controllable, and there are two of them
+>
+> **`SET_DOUBLELIGHT` (32788) drives a visible white floodlight, with the IR-cut filter left IN
+> (`DAYNIGHT` = 0). [M]** So illumination is **independently controllable and night mode is not a
+> precondition** — you can flash a light without switching the camera to monochrome.
+>
+> **How it was established**, because whole-frame statistics could not do it: the command was
+> cycled **three times in a known window**, with a *second* candidate command (`LED_STATUS`) run in
+> a **separate, non-overlapping block**, so the observer's timing alone names which one fired. JP
+> reported *"it blinked like 3 times a minute or so ago"* — landing 1.3 min after the
+> `DOUBLELIGHT` block and 2.5 min after the `LED_STATUS` block. **Block B. Unambiguous.**
+>
+> ⚠️ **Despite the name, `DOUBLELIGHT` does not appear to mean "both lights at once."** JP, who was
+> briefed only about infrared, spontaneously reported **white** light — and then, unprompted, that
+> it was *"just white lights not white and ir"*. Combined with an **infrared** sighting during an
+> earlier sweep at `DAYNIGHT` mode 2, the evidence reads as a **selector over which illuminator is
+> active**, not a combined mode. **[I]** on the exact enum; `2` is the units' original value.
+>
+> **Add it to the list of names that mislead**, next to the codec that reports `H264` while
+> streaming H.265 and the "MAC address" that is a formatted pointer.
+>
+> | command | result |
+> |---|---|
+> | **`SET_DOUBLELIGHT` 32788** | ✅ **drives a visible white illuminator** — filter in, day mode |
+> | `SET_LED_STATUS` 1058 | ⚠️ **accepted but inert** — status `0` every time, no observed effect in either block. *Accepted is not honoured*, one layer deeper again |
+> | `SET_ALARMLIGHT` 1090 | ❌ **no ack at all**, on a demonstrably live session with commands either side acking normally. **Unproven for `1090` specifically** — not a session failure |
+>
+> **A refuted prediction, recorded because it was staked in advance.** Before the observer spoke,
+> the hypothesis on record was that IR would prove to be a *side-effect* of night mode rather than
+> an independent control. **The timing refuted it.** A prediction offered before the evidence and
+> then overturned by it is worth more to a reader than one that survived.
 
 ⚠️ **The IR-LED negative is weak by its own author's admission** — the sweep ran in daylight, and
 firmwares commonly refuse to light an IR lamp while the ambient sensor reads "day". A post-dusk
