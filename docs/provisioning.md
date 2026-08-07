@@ -191,6 +191,29 @@ route     -> 192.168.200.0/24 dev wlan0
 processes -> hostapd -B /tmp/hostapd.conf   +  udhcpd -S /tmp/udhcpd.conf
 ```
 
+### 🔴 And the SSID itself is not diagnostic — measured on healthy units, no reboot required
+
+The transient's own config files survive in tmpfs, so this is readable on **any running camera
+right now**. Measured on **both** bench units, 2026-08-07: **[M]**
+
+```
+/tmp/hostapd.conf    interface=wlan0   hw_mode=g   channel=3
+                     ssid=AICAM_<12 chars>         auth_algs=1
+/tmp/udhcpd.conf     interface wlan0   start 192.168.200.100   end 192.168.200.120
+```
+
+> **A correctly-configured, fully working camera broadcasts `AICAM_<12 chars>` and serves DHCP on
+> `192.168.200.x` for the first ~3½ minutes of every boot** — which is *precisely* the signature
+> recorded below as proof that a camera has lost its configuration.
+
+Both files carry boot-time mtimes on both units, so this happens on **every** boot. **Seeing the
+setup SSID cannot, by itself, distinguish a wiped camera from a booting one.**
+
+⚠️ **What this does NOT do is disprove the original failure.** That camera also **held no lease and
+neither address answered** — and if it was still in AP mode well past 4 minutes, it was real. **The
+record does not say how long anyone waited.** That is exactly why this is *unproven* and not
+*false*.
+
 **Mechanism, so this is not merely an empirical rule:** `p2pcam` does not write
 `/home/wpa_supplicant.conf` until **~boot+60 s** and only then launches `wpa_supplicant`. Before
 that there is no supplicant on the box at all, so the firmware brings up hostapd meanwhile. **The
