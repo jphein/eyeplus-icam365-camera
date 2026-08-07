@@ -73,6 +73,65 @@ edits. Pull the card, power-cycle, and the unit is bit-for-bit stock.
 
 ⚠️ **Removing the card does not stop a running `telnetd`.** Only a power cycle does.
 
+## 🔴 SSH: four stacked defects, all producing the same symptom
+
+**`dropbear -R` can never work on these cameras**, and it fails in the way this repo keeps
+meeting: **the daemon starts, the port listens, `ps` shows it alive, and every login dies before
+auth.** Every cheap health check passes. **[M] 2026-08-06**
+
+```
+Couldn't create new file /etc/dropbear/dropbear_ecdsa_host_key.tmp2572: No such file or directory
+Exit before auth: Couldn't read or generate hostkey /etc/dropbear/dropbear_ecdsa_host_key
+```
+
+`-R` means *generate host keys as required* — and it defers that work to **connection time**,
+writing to a **compiled-in `/etc/dropbear/`** that does not exist on a **read-only squashfs**
+(`/dev/root / squashfs ro`). Nothing is wrong at startup, so nothing looks wrong until a human
+tries to log in.
+
+> ⚠️ **The card script recorded `-R` as "Measured".** What was measured was `netstat` showing
+> `:2222 LISTEN`. **A listening port is not a working service** — this is the accepted-but-inert
+> pattern from [method.md](method.md) applied to our own tooling rather than the vendor's.
+
+**Four defects were stacked, each hidden behind the next, all reporting `Permission denied`:**
+
+| # | defect | why it isn't guessable |
+|---|---|---|
+| 1 | `-R` cannot write its key (read-only rootfs) | fails at connection time, not startup |
+| 2 | **`dropbearkey` is not in this multibinary** | its own usage text says `dropbearmulti <command>` — but the list is only `dropbear`, `dbclient`/`ssh`, `scp` |
+| 3 | **`authorized_keys` is found via `getpwnam()`, not `$HOME`** | `HOME=/bak/root` is decorative; `/etc/passwd` says `/root` |
+| 4 | **Dropbear 2016.74 predates ed25519 *user* keys** | an `ssh-ed25519` entry is silently unusable |
+
+**Only reading the daemon's own stderr separated them** — `dropbear -F -E -p <spare port>`, then
+connect and read the log. Guessing was hopeless: four causes, one message.
+
+> 🔑 **On #2 — reading a tool's documentation is not running it.** The usage text was taken as
+> proof the subcommand existed; it does not. This is [`which` lying about BusyBox
+> applets](method.md) one layer up, and **worse, because usage text feels authoritative.**
+
+### The recipe that works
+
+1. **Generate host keys off-device** (`dropbearkey` on a workstation — `apt install dropbear-bin`).
+   The format is architecture-independent.
+2. **Carry them in and verify by checksum.** With no `base64`/`wget` on some units, octal-escaped
+   `printf` in ≤128-byte chunks works; **compare `md5sum` at both ends** — see the pty corruption
+   hazards in [method.md](method.md).
+3. **Use `-r`, never `-R`**, pointing at the keys on writable flash:
+   `dropbear -r /bak/etc/dropbear/dropbear_ecdsa_host_key -r …_rsa_host_key -p 2222`
+   ✅ `-r` only **reads**, so `/bak` may stay mounted **ro** — which is why this survives boot.
+4. **Bind-mount the escrow onto the passwd home**: `mount -o bind /bak/root /root`.
+   **This must be in the boot hook**, before dropbear starts, or SSH breaks on the next reboot.
+5. **Put an `ssh-rsa` key in `authorized_keys`** and connect with
+   `-o PubkeyAcceptedAlgorithms=+ssh-rsa` — modern OpenSSH disables SHA-1 RSA signatures by
+   default, which this 2016 server is the only thing that speaks.
+
+**Verified by effect on a live unit: `SSH_LOGIN_OK`, `uid=0(root)`, and two `ssh-keyscan`s
+returning identical fingerprints** — a stable host identity, where `-R` would have produced a
+fresh key per connection even had it worked.
+
+🔴 **`scripts/card/debug_cmd.sh` still ships the `-R` form and needs this fix**, or SSH is dead on
+every unit the card touches. Telnet on `:2323` is unaffected and remains the reliable path.
+
 ⚠️ **The camera must be on the network to reach it.** A unit that has lost its WiFi config comes
 back in AP mode with no LAN address, so **re-provision first, then insert the card and boot.**
 
