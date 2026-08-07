@@ -461,6 +461,7 @@ units, and why this project had to find `:8001` by hand.
 | **Non-movers** | **`0, 2, 4, 6, 8`** — each tested from **two opposite corners** | **[M]** |
 | Pan axis | `act=1` ↔ `act=3` are **opposites** (net 4.3 after two ~49 moves) | **[M]** |
 | Tilt axis | `act=7` ↔ `act=9` are **opposites** | **[M]** |
+| 🔑 Absolute position | **exists at the driver level and ONVIF exposes none of it. [M]** `/bak/ptz.cfg` carries `hmotor_upbound = 510`, `vmotor_upbound = 95`, `max_pps = 600`, and `hcptz.ko` loads with `psp_file=/home/psp.dat` — **step bounds, a homing self-check and a persisted position file.** So *"presets are impossible"* is a statement about ONVIF, not the hardware; **[I]** with root, `psp.dat` plus those bounds is a plausible route to real presets |
 | Absolute direction (which is "left") | **[?]** — deliberately unpublished. It rests on the firmware honouring the ONVIF sign convention, on a device that misreports codec, MAC, gateway, GOP, framesize, serial and profile count. **One human eyeball closes it** | |
 | 🔴 Travel per command | **a single `act` drives the full range to a hard mechanical stop.** Pan ~5.2 s, tilt ~13.0 s. There is no partial step | **[M]** |
 | Repeatability | pan **5.1 / 5.2 / 5.2 / 5.3 s**; tilt **13.0 / 13.0 / 13.0 / 13.3 s** | **[M]** |
@@ -500,7 +501,8 @@ units, and why this project had to find `:8001` by hand.
 | ONVIF analytics | ❌ five operations decline; `GetMetadataConfigurations` self-reports `Analytics=false` | **[M]** |
 | Metadata/analytics RTSP track | ❌ absent from the SDP | **[M]** |
 | **Consequence** | **Home Assistant will never show a motion sensor for these cameras.** Structural, not a misconfiguration — no YAML fixes it | **[M]** camera side, **[I]** the HA code path |
-| AI detection / auto-tracking | exists in the vendor app's vocabulary (`AiDetect`, `MotionTrack`); ❌ not reachable locally | **[M]** |
+| 🔴 AI detection | ⚠️ **PERSON ONLY — it cannot see cars.** `/p2pcam/inapp.ini`: ShuffleNetV2 x0.5 TFLite, 192×192, **`num_classes=1`, `labels=person`, `topk=1`**. A *classifier*, not an object detector — no boxes, no vehicle class. **[M]** |
+| Auto-tracking | in the vendor app's vocabulary (`MotionTrack`); ❌ not reachable locally | **[M]** |
 
 ### Imaging
 

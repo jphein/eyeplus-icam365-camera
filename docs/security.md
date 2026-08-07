@@ -3,6 +3,29 @@
 > 🔴 **These cameras have no authentication worth the name. VLAN isolation is the only control
 > protecting them, and it is load-bearing.**
 
+## 🔴 One root hash for the entire fleet, and it cannot be changed
+
+`/etc/shadow` is **mode 0775, 48 bytes, MD5-crypt (`$1$`), inside the read-only squashfs
+rootfs.** **[M]**
+
+Four properties compound:
+
+* **Identical on every unit of this build** — it ships in the image, so it is not per-device.
+* **World-readable** by any process on the camera.
+* **Unchangeable in place** — `/etc` is read-only squashfs; `passwd` cannot persist a new hash.
+* **MD5-crypt** — fast to attack and long obsolete.
+
+> **Crack it once and you own every camera of this firmware, permanently.** There is no
+> remediation short of replacing the image.
+
+⚠️ **And there is already a login prompt on the serial port.** `inittab` runs
+`::respawn:-/bin/login` on `/dev/console` = `ttyAS0`. So **UART access plus one cracked hash is
+permanent fleet root** — no network involved.
+
+What still holds it back: the read-only rootfs, no stock network login service, and the VLAN.
+**This is a third independent reason the VLAN isolation is load-bearing rather than
+precautionary.** The hash value is deliberately recorded nowhere.
+
 ## 🔴 Port 6670 is an unauthenticated debug console
 
 **This outranks the credential disclosure in kind.** A leaked password exposes *data*; an open
