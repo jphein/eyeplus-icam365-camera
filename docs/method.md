@@ -250,6 +250,52 @@ returned "yes" both times.
 hour.** That is the argument for the guard being **procedural rather than a matter of care.**
 Nobody is careful enough to catch this reliably.
 
+## 🚫 A grep for a name can land in a different subsystem entirely
+
+`p2pcam` contains **two unrelated things called `userID`**, and the one you want has far *fewer*
+hits than the one you don't. **[M] 2026-08-07**
+
+| | strings | what it is |
+|---|---|---|
+| **provisioning** | `userid` (a `/setwifi` field), `userid=%d`, `ssid:%s; key:%s; userid:%d; bind_token:%s` | the **cloud account id** submitted at pairing |
+| **session** | `getMatchUserID`, `NO_ILDE_USER!`, `new login userID = %d`, `del userID=%d UserInfo` | a **P2P session-slot index** — bookkeeping for connected clients |
+
+**Grep `userid` and the session subsystem answers first.** Acting on it would put a session slot
+index where an account id belongs — and the value would look entirely plausible.
+
+**Two hardware cases in this repo have the same shape:**
+
+* **`SmokeAlarm` and `CallKey` share GPIO 17** in `hardinfo.bin` — one pin, two names, and neither
+  name warns you. Do not infer a fitted smoke alarm from the descriptor.
+* **`hardinfo.bin` declares `ALarmLight` on GPIO 10 while `GET_FEATURE` reports
+  `"AlarmLight":"No"`.** The *pin map* and the *feature map* are different artefacts and they
+  disagree: the board has the pin, the unit does not offer the feature. ⚠️ **Treating one as
+  settling the other caused a correct hypothesis to be retracted and then un-retracted.**
+
+> **The habit: match on the number, the call site, or the artefact — never on the noun.** A string
+> is not an identifier; it is a word that may be reused. And **check which artefact you are
+> holding** before letting it overrule another one.
+
+## 🚫 The pty corrupts binary reads four ways, and `stty -opost` does not fix it here
+
+Reading a binary file over this firmware's `telnetd` corrupts it in **four** distinct ways: ONLCR,
+IAC-doubling, **lossy TAB expansion** (`tab3` is on by default), and **line wrapping at the
+terminal column**. A 617-line file came back as **619 lines with all 356 TABs gone**. **[M]**
+
+🔴 **The documented mitigation does not apply on these cameras.** `stty -opost` returns
+`Inappropriate ioctl for device` — stdin is not a tty on this telnetd — so it silently does
+nothing. **Three of the four modes are unavoidable for any file containing the affected bytes**:
+`devParam.dat` holds exactly one TAB and comes back **1005 bytes for a 1004-byte file.**
+
+**What works:** hash at both ends and compare, or fetch via a per-byte `md5sum` oracle. A
+**zero-block skip** makes that cheap enough to be routine — hash 64-byte blocks, compare against
+the hash of 64 zero bytes, and fetch per-byte only the remainder. `extraParam.dat` is 4 non-zero
+blocks of 80, so **256 bytes are fetched instead of 5120.**
+
+✅ **RETRACTED: "the pty swallows NUL bytes."** That was a probe parsing its own command echo —
+raw `cat` is byte-exact for NULs. The claim reached a write-up with supporting arithmetic before
+a second party failed to reproduce it.
+
 ## See also
 
 * [security.md](security.md) — what the write-probe did to a camera
