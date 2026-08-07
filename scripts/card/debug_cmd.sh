@@ -169,8 +169,12 @@ backup_to_card() {   # backup_to_card <path>
 install_hook() {   # install_hook <hook-path> <command-line>
     backup_to_card "$1"
     if [ -f "$1" ]; then
-        if grep -q 'fleet card' "$1" 2>/dev/null; then
-            log "hook: already installed in $1"; return
+        # ⚠️ Guard on THIS command, not on the string 'fleet card'. This function
+        # is called twice with different commands (telnet, then SSH); a generic
+        # marker made the second call a no-op, so SSH was silently never
+        # installed while the log cheerfully said "already installed".
+        if grep -qF "$2" "$1" 2>/dev/null; then
+            log "hook: already present in $1 — $2"; return
         fi
         log "hook: $1 EXISTS (vendor file) — appending, not replacing"
         printf '%s\n' "" "# --- fleet card ---" "$2" >> "$1"
@@ -183,12 +187,15 @@ install_hook() {   # install_hook <hook-path> <command-line>
 }
 
 install_line() {   # install_line <marker-comment> <command-line>
-    backup_to_card /bak/start.sh
-    [ -f /bak/start.sh.orig ] || cp /bak/start.sh /bak/start.sh.orig
-    if grep -q "$1" /bak/start.sh 2>/dev/null; then
+    # The sibling platform has no /bak; its start.sh lives in /home.
+    ST=/bak/start.sh; [ -f "$ST" ] || ST=/home/start.sh
+    [ -f "$ST" ] || { log "persist: no start.sh to edit"; return; }
+    backup_to_card "$ST"
+    [ -f "$ST.orig" ] || cp "$ST" "$ST.orig"
+    if grep -q "$1" "$ST" 2>/dev/null; then
         log "persist: already installed ($1)"; return
     fi
-    printf '%s\n' "" "# $1" "$2" >> /bak/start.sh
+    printf '%s\n' "" "# $1" "$2" >> "$ST"
     # Verify before trusting: a broken start.sh means a camera that will not boot.
     if sh -n /bak/start.sh 2>/dev/null; then
         log "persist: installed ($1); start.sh syntax OK"
@@ -200,15 +207,23 @@ install_line() {   # install_line <marker-comment> <command-line>
 
 SHELL_CMD="busybox telnetd -l /bin/sh -p 2323 2>/dev/null &"
 
+# Which partition can we actually write to? Augentix units have a 4.6 MB /bak;
+# the sibling platform has NO /bak whatsoever and only /home (~3.8 MB jffs2) is
+# writable. Hardcoding /bak silently disabled SSH on that platform: every mkdir
+# and cp failed into /dev/null and the daemon simply never started.
+RW=/home
+if [ -d /bak ] && mkdir -p /bak/.wtest 2>/dev/null; then RW=/bak; rmdir /bak/.wtest 2>/dev/null; fi
+log "writable base: $RW"
+
 if [ -f "$CARD/SSH" ] && [ -f "$CARD/dropbearmulti" ]; then
     # Statically linked ARM binary; ARMv7 runs ARMv5 code, so one build serves
     # both silicon families measured so far.
-    mkdir -p /bak/sbin 2>/dev/null
-    cp "$CARD/dropbearmulti" /bak/sbin/dropbearmulti 2>/dev/null
-    chmod 755 /bak/sbin/dropbearmulti 2>/dev/null
-    ln -sf /bak/sbin/dropbearmulti /bak/sbin/dropbear 2>/dev/null
-    ln -sf /bak/sbin/dropbearmulti /bak/sbin/dropbearkey 2>/dev/null
-    mkdir -p /bak/etc/dropbear 2>/dev/null
+    mkdir -p $RW/sbin 2>/dev/null
+    cp "$CARD/dropbearmulti" $RW/sbin/dropbearmulti 2>/dev/null
+    chmod 755 $RW/sbin/dropbearmulti 2>/dev/null
+    ln -sf $RW/sbin/dropbearmulti $RW/sbin/dropbear 2>/dev/null
+    
+    mkdir -p $RW/etc/dropbear 2>/dev/null
     # ⚠️ FOUR measured traps here, each of which silently produced NO SSH while
     # every cheap check passed. Verified fixed on a live unit: SSH_LOGIN_OK,
     # uid=0(root). See docs/root-access.md for the full write-up.
@@ -236,12 +251,12 @@ if [ -f "$CARD/SSH" ] && [ -f "$CARD/dropbearmulti" ]; then
     #     authorized_keys, and connect with -o PubkeyAcceptedAlgorithms=+ssh-rsa
     #     (modern OpenSSH disables SHA-1 RSA signatures by default).
     if [ -f "$CARD/authorized_keys" ]; then
-        mkdir -p /bak/root/.ssh 2>/dev/null
-        cp "$CARD/authorized_keys" /bak/root/.ssh/authorized_keys 2>/dev/null
-        chmod 700 /bak/root/.ssh 2>/dev/null
-        chmod 600 /bak/root/.ssh/authorized_keys 2>/dev/null
-        log "ssh: authorized_keys -> /bak/root/.ssh/"
-        grep -q 'ssh-rsa' /bak/root/.ssh/authorized_keys 2>/dev/null \
+        mkdir -p $RW/root/.ssh 2>/dev/null
+        cp "$CARD/authorized_keys" $RW/root/.ssh/authorized_keys 2>/dev/null
+        chmod 700 $RW/root/.ssh 2>/dev/null
+        chmod 600 $RW/root/.ssh/authorized_keys 2>/dev/null
+        log "ssh: authorized_keys -> $RW/root/.ssh/"
+        grep -q 'ssh-rsa' $RW/root/.ssh/authorized_keys 2>/dev/null \
             || log "ssh: WARNING no ssh-rsa key present — 2016.74 cannot use ed25519 user keys"
     fi
     # Host keys come from the card. Generate them on a workstation with
@@ -250,18 +265,18 @@ if [ -f "$CARD/SSH" ] && [ -f "$CARD/dropbearmulti" ]; then
     HOSTKEYS=""
     for k in ecdsa rsa; do
         if [ -f "$CARD/dropbear_${k}_host_key" ]; then
-            cp "$CARD/dropbear_${k}_host_key" "/bak/etc/dropbear/dropbear_${k}_host_key" 2>/dev/null
-            chmod 600 "/bak/etc/dropbear/dropbear_${k}_host_key" 2>/dev/null
+            cp "$CARD/dropbear_${k}_host_key" "$RW/etc/dropbear/dropbear_${k}_host_key" 2>/dev/null
+            chmod 600 "$RW/etc/dropbear/dropbear_${k}_host_key" 2>/dev/null
         fi
-        [ -f "/bak/etc/dropbear/dropbear_${k}_host_key" ] && \
-            HOSTKEYS="$HOSTKEYS -r /bak/etc/dropbear/dropbear_${k}_host_key"
+        [ -f "$RW/etc/dropbear/dropbear_${k}_host_key" ] && \
+            HOSTKEYS="$HOSTKEYS -r $RW/etc/dropbear/dropbear_${k}_host_key"
     done
     if [ -n "$HOSTKEYS" ]; then
-        SSH_CMD="mount -o bind /bak/root /root 2>/dev/null; /bak/sbin/dropbearmulti dropbear$HOSTKEYS -p 2222 2>/dev/null &"
-        log "ssh: dropbear staged at /bak/sbin, host keys:$HOSTKEYS"
+        SSH_CMD="mount -o bind $RW/root /root 2>/dev/null; $RW/sbin/dropbearmulti dropbear$HOSTKEYS -p 2222 2>/dev/null &"
+        log "ssh: dropbear staged at $RW/sbin, host keys:$HOSTKEYS"
     else
         SSH_CMD=""
-        log "ssh: NO host key on card or /bak — SSH DISABLED (dropbear -R cannot"
+        log "ssh: NO host key on card or $RW — SSH DISABLED (dropbear -R cannot"
         log "ssh: generate one on a read-only rootfs). Telnet on 2323 is unaffected."
     fi
 fi
@@ -304,7 +319,7 @@ if [ ! -f "$CARD/NOSHELL" ]; then
         log "ssh started this boot: $SSH_CMD"
         # Record whether the binary actually runs on this silicon, since the
         # dropbear build is ARMv5 and these units are ARMv7.
-        log "dropbear runs here: $(/bak/sbin/dropbearmulti 2>&1 | head -1)"
+        log "dropbear runs here: $($RW/sbin/dropbearmulti 2>&1 | head -1)"
     fi
 fi
 
