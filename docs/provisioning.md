@@ -56,7 +56,17 @@ read, no credential touched). jffs2 writes `ino=0` on unlink, so its log is an a
 * **The deletion order matches the `remove()` call order in the binary exactly**, and the five
   paths that leave *no* record are precisely the ones that did not exist. Consistent including
   the absences.
-* **Nothing written afterwards** — that unit was running with no WiFi config on flash at all.
+* **Nothing written afterwards** in that image.
+
+> ⚠️ **RETRACTED to unproven — this page previously said "that unit was running with no WiFi
+> config on flash at all."** That was inference stated as measurement, and it was published here.
+> `DUMPFLASH` runs from `debug_cmd.sh` at `start.sh:316`, **before `p2pcam` starts at `:593`** — so
+> a dump always shows `/home` as the *previous* session left it. The image cannot distinguish
+> *"wiped and still serving frames"* from *"wiped, caught early in the next boot."*
+>
+> **The latency claim itself still stands** — it was demonstrated directly on two units by moving
+> the files off live flash and watching the cameras stay online. **But that dump was never its
+> proof.** The distinction matters: one is a measurement, the other was a story that fitted it.
 
 Independently confirmed by mounting the image read-only through `mtdram` and letting the kernel
 replay the journal. **This rules out every benign explanation**: not garbage collection, not an
@@ -86,6 +96,45 @@ of four identical counters. **`cfg` means `hwcfg.ini`, not "configuration".** [M
 
 > **The name matched the hypothesis and the code did not.** Same shape as
 > [a matching symptom is not a confirmed mechanism](../README.md#the-sibling-rule-learned-on-the-anyka-camera-a-broken-thing-may-be-load-bearing).
+
+### 🔴 ROLLOUT BLOCKER: a camera can silently ignore the card entirely
+
+`start.sh:275`: **[M]**
+
+```sh
+if [ -f /home/SD_CHECK -o -f /home/SD_NOMOUNT ]; then
+        ...                    # the SD card is NEVER mounted
+else
+        mount ... /mnt         # only here does /mnt/debug_cmd.sh run
+fi
+```
+
+**Both flags are written by `p2pcam`, live in `/home`, and are *not* on the wipe list — so they
+persist.** A unit holding either **never mounts the card, never runs the hook, and reports
+nothing.** The card simply appears to do nothing, with no error anywhere.
+
+> 🔴 **This is a chicken-and-egg trap aimed precisely at the units that need help most.** A camera
+> that has lost its config *and* holds `SD_NOMOUNT` cannot be rescued by the card at all. The fix
+> has to arrive over the network instead (`:2323` / `:2222`) — which is how both bench units were
+> done. `custom_pre_init.sh` runs at `:67`, *before* that branch, so an **already-installed** hook
+> can clear the flags; a hook that was never installed cannot.
+
+**Check before trusting a card run:** `ls /home/SD_CHECK /home/SD_NOMOUNT`. Neither bench unit
+currently holds either. **[M]**
+
+### ❓ UNTESTED, and it should be tested before fourteen units: does booting from the card provoke the reset?
+
+The wall unit's dirent log shows **`SD_NOMOUNT` created and deleted three times (v113–118)
+immediately before the six-file wipe (v119–124)**. **[I] That is a correlation in a log and
+nothing more** — but note what it would mean if causal:
+
+> **We have been booting these cameras from the fleet card all day.** If SD-card booting itself
+> provokes the factory reset, the tool built to *diagnose* the wipe would be *causing* it — and
+> the evidence would look exactly like what we have.
+
+**It is cheap to instrument now and expensive to discover after fourteen units.** The test is a
+control: boot a unit with the card, and an identical unit without, and compare the `/home` dirent
+log across both.
 
 ### ✅ The fix — survive the wipe rather than prevent it
 
