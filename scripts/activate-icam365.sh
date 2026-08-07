@@ -146,11 +146,28 @@ if ! ip -4 addr show dev "$WIFI_DEV" | grep -q 'inet 192\.168\.200\.'; then
 fi
 
 TOKEN="and_$(tr -dc 'a-z' </dev/urandom | head -c 5)"
-say "POST /setwifi  ssid=$SSID  (userid 0 + bind_token — all four are mandatory)"
+# ⚠️ userid is the BINDING field, and binding happens HERE — not later. Measured
+# 2026-08-07 from a plaintext capture of the vendor app: `userid` and
+# `bind_token` are submitted in the SAME request as the WiFi credentials, and
+# there is no subsequent step that can attach an account. That is why the app
+# cannot claim a camera that has already been provisioned locally: sending "0"
+# registers the unit to the cloud as permanently unowned.
+#
+# The default stays "0" because that is the only value we can generate without
+# an account. Set ICAM_USERID to bind to a real account instead.
+# ⚠️ [I] JP's hypothesis — unverified — is that a non-zero userid is what stops
+# the firmware wiping its own WiFi config. The one camera measured never to have
+# lost its config was the one bound unit. See docs/provisioning.md.
+USERID="${ICAM_USERID:-0}"
+if [ "$USERID" != "0" ]; then
+    say "POST /setwifi  ssid=$SSID  (userid: SUPPLIED — attempting a BOUND provision)"
+else
+    say "POST /setwifi  ssid=$SSID  (userid 0 = unowned + bind_token — all four are mandatory)"
+fi
 RESP=$(mktemp)
 HTTP=$(curl -sS -m 10 -o "$RESP" -w '%{http_code}' \
        -H 'Content-Type: application/json' \
-       -d "{\"ssid\":\"$SSID\",\"key\":\"$KEY\",\"userid\":\"0\",\"bind_token\":\"$TOKEN\"}" \
+       -d "{\"ssid\":\"$SSID\",\"key\":\"$KEY\",\"userid\":\"$USERID\",\"bind_token\":\"$TOKEN\"}" \
        "$AP_URL") || HTTP=000
 BODY=$(cat "$RESP" 2>/dev/null); rm -f "$RESP"
 echo "   HTTP $HTTP  body: ${BODY:-<none>}"
