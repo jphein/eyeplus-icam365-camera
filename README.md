@@ -128,7 +128,7 @@ cause looks like an improvement.
 | ✅ PTZ | ONVIF `ContinuousMove` and HA's `onvif.ptz`. No presets, but the mechanical limits are repeatable, so **a "go to a known corner" macro exists** — aim is recoverable, not irreversible |
 | ✅ Local provisioning | [No cloud account needed](docs/provisioning.md) |
 | ✅ **Day/night (IR-cut)** | **Vendor channel only** — `SET_DAYNIGHT`, [measured by the image going monochrome and back](#specifications). ONVIF cannot: the imaging operations do not exist |
-| ⚠️ Two-way audio | **Unproven.** Speaker hardware confirmed, `tSpeaker` runs, and `818` is *accepted* — but no emitted sound has been attributed. ONVIF has no backchannel at all |
+| ✅ **Two-way audio** | **Vendor channel only** — `818` + G.711A on channel 5, [confirmed by ear at the device](#specifications). ONVIF has no backchannel at all |
 | ✅ Availability monitoring | HA binary sensor + health sensor |
 | ⚠️ WiFi persistence | **Depends entirely on how the unit was paired.** App-paired with cloud → [survives a power cycle, measured](docs/provisioning.md#-confirmed-m-a-camera-does-survive-a-power-cycle). Locally provisioned with `userid:"0"` → [loses its config on a single clean flip](docs/provisioning.md#-answered-it-is-not-durable-confirmed), measured. ⚠️ **The instruction that used to sit here — *"every camera needs one supervised app pairing before isolation"* — is withdrawn as premature.** It was derived from a cause that is [retracted to unproven](#-retracted-2026-08-06-icam365-01-was-app-paired-in-2024-with-cloud); the two units differ in **firmware** as well as pairing. If firmware is the real variable the correct instruction is *"run `57.0.8.0`"*, which is far cheaper. **Settle it on one spare before pairing twelve.** |
 | ❌ Position feedback / presets / home | Not implemented. **No way to restore a framing in software.** |
@@ -399,12 +399,12 @@ units, and why this project had to find `:8001` by hand.
 |---|---|---|
 | Microphone | ✅ present, all units — **PCM A-law, 8 kHz, mono, 64 kbit/s**, 40 ms ptime, always on | **[M]** |
 | Speaker hardware | ✅ **present in every unit** (physical inspection), and the firmware runs a **`tSpeaker`** thread | **[M]** |
-| Audio **out** / two-way talk | ⚠️ **UNPROVEN — two claimed confirmations withdrawn, see below.** `818 startSpeaking` is **accepted** by the firmware (status `0`, where refusals return `3`) **[M]**, and G.711A frames were transmitted on channel 5 — but no sound has been attributed to them. ❌ Not reachable over ONVIF/RTSP: ten audio-output operations decline, SDP is `recvonly`, and the backchannel `Require` header is **answered `200` and silently ignored** where RFC 2326 mandates `551` | **[M]** |
+| Audio **out** / two-way talk | ✅ **WORKS. [M]** `818 startSpeaking` + raw G.711A on **channel 5**, 8 kHz mono, 40 ms frames with a 16-byte `SFrameInfo` header. Firmware returns status `0` = accepted (refusals return `3`), and **JP confirmed with his ear at the unit that the sound came from the camera.** ❌ Not reachable over ONVIF/RTSP: ten audio-output operations decline, SDP is `recvonly`, and the backchannel `Require` header is **answered `200` and silently ignored** where RFC 2326 mandates `551` | **[M]** |
 | Advertised `AudioOutputs` | **`1`** — advertised and unreachable; joins the list of fields that are simply wrong | **[M]** |
 | Audio codec over ONVIF | ❌ unavailable — the audio encoder configuration is an **empty stub** (blank token, blank encoding, zero rates). The SDP is the only source | **[M]** |
 | Microphone mute | **[?]** not tested | |
 
-> #### ❌ How this was claimed TWICE and withdrawn twice
+> #### ✅ Confirmed on the third attempt — and what the first two were missing
 >
 > **Claim 1** attributed a reported sound to a test believed not to have run. Withdrawn.
 >
@@ -431,6 +431,23 @@ units, and why this project had to find `:8001` by hand.
 > **Two false confirmations of the same capability inside one hour, by the person enforcing the
 > rule on everyone else.** Nobody is careful enough to catch this reliably. The guard has to be
 > procedural.
+>
+> ### ✅ What actually settled it
+>
+> **JP put his ear to the unit and reported the sound came from the camera.** That is the
+> attribution question, and it is the one all three earlier attempts skipped while arguing about
+> content. Combined with `818` returning **accepted** and frames transmitted in a known window, the
+> capability is confirmed.
+>
+> ⚠️ **Recorded honestly: the listener's vocabulary was leaked** — he had been briefed to expect
+> "beeps and a tone" — so the *pattern* match is weak evidence. **The source attribution is the
+> strong part**, and it is what was missing.
+>
+> 🔑 **And a closing lesson in the other direction, which cost as much time as the false positives
+> did:** after being wrong twice, the verification demands escalated past usefulness — a fourth
+> and fifth round of questioning were queued for a claim that a person standing next to the device
+> had already answered. **Over-correction is also a failure mode.** Calibration means updating in
+> both directions; the point of a guard is to catch errors, not to make evidence unacceptable.
 
 ### Pan / tilt
 
