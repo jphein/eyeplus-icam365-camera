@@ -602,6 +602,40 @@ method in [docs/root-access.md](docs/root-access.md).
 | Serial console | present in `inittab` but **commented out** (`ttyAS0`) |
 | A sibling model | **Linux 4.9.37**, 5 partitions — [same boot hook](docs/root-access.md) |
 
+> ### 🔑 The GPIO map — from `/bak/hardinfo.bin`, a per-unit XML file
+>
+> **[M]** `<Model>HC1703L</Model>`, `BoardType 2900`, manufacturer `AJ`. These are the pins the
+> network cannot reach:
+>
+> | function | GPIO | active |
+> |---|---|---|
+> | **IR LEDs** (`IrCtrl`) | **77** | 1 |
+> | 🔴 **IR-cut filter** | **80 *and* 79** | 1 |
+> | **White light** | **12** | 1 |
+> | **Alarm light** | **10** | 1 — a **third** illuminator, previously unmentioned anywhere |
+> | 🔑 **Speaker amplifier enable** | **64** | **0** |
+> | board reset / call key / smoke alarm | 6 / 17 / 17 | 0 |
+> | Blue LED, Red LED, WiFi control | **not fitted** (`-1`) | — |
+>
+> Syntax is `gio -do <pin> <val>` (direction) and `gio -s <pin> <val>` (set); **pin 5 is WiFi
+> power**, from the stock `custom_init.sh`.
+>
+> 🔴 **The Anyka trap is here in its original form: two pins, one filter.** `IrCut1B = 80` and
+> `IrCut2B = 79` — **[I]** an H-bridge driving a bipolar latching solenoid. On the sibling camera
+> the two things were sysfs *strings*; here they are two *pins*, and the failure is identical —
+> **drive both wrong and the filter latches to the wrong side.** `ircut_reverse` and
+> `ircut2_reverse` exist as config keys, so **polarity is a setting**. Do not write 79/80 as a
+> first experiment: watch what the firmware does during its own day/night transition and
+> reproduce that.
+>
+> 🔑 **`SpeakerCtrl = 64`, active low, is the two-way-audio unlock** — and it was *predicted*
+> before it was found, by analogy with the sibling camera's amplifier-enable pin.
+>
+> ⚠️ **Do not trust `hardinfo.bin` outside the GPIO block.** It claims `<WifiChip>RTL8188</WifiChip>`
+> while the driver actually loaded is **ZT9101**, and its `SensorPosition` contradicts
+> `hwcfg.ini`. Two more fields that are simply wrong — on a device whose whole documentation is a
+> catalogue of those.
+
 > ### 🔴 These cameras are not one platform — they are at least two silicon vendors
 >
 > **[M]** on two EYEPLUS units, **[I]** on the sibling:
