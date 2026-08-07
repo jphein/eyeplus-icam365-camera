@@ -128,7 +128,7 @@ cause looks like an improvement.
 | ✅ PTZ | ONVIF `ContinuousMove` and HA's `onvif.ptz`. No presets, but the mechanical limits are repeatable, so **a "go to a known corner" macro exists** — aim is recoverable, not irreversible |
 | ✅ Local provisioning | [No cloud account needed](docs/provisioning.md) |
 | ✅ **Day/night (IR-cut)** | **Vendor channel only** — `SET_DAYNIGHT`, [measured by the image going monochrome and back](#specifications). ONVIF cannot: the imaging operations do not exist |
-| ✅ **Two-way audio** | **Vendor channel only** — `818` + G.711A on channel 5, [confirmed by ear](#specifications). ONVIF has no backchannel at all |
+| ⚠️ Two-way audio | **Unproven.** Speaker hardware confirmed, `tSpeaker` runs, and `818` is *accepted* — but no emitted sound has been attributed. ONVIF has no backchannel at all |
 | ✅ Availability monitoring | HA binary sensor + health sensor |
 | ⚠️ WiFi persistence | **Depends entirely on how the unit was paired.** App-paired with cloud → [survives a power cycle, measured](docs/provisioning.md#-confirmed-m-a-camera-does-survive-a-power-cycle). Locally provisioned with `userid:"0"` → [loses its config on a single clean flip](docs/provisioning.md#-answered-it-is-not-durable-confirmed), measured. ⚠️ **The instruction that used to sit here — *"every camera needs one supervised app pairing before isolation"* — is withdrawn as premature.** It was derived from a cause that is [retracted to unproven](#-retracted-2026-08-06-icam365-01-was-app-paired-in-2024-with-cloud); the two units differ in **firmware** as well as pairing. If firmware is the real variable the correct instruction is *"run `57.0.8.0`"*, which is far cheaper. **Settle it on one spare before pairing twelve.** |
 | ❌ Position feedback / presets / home | Not implemented. **No way to restore a framing in software.** |
@@ -399,25 +399,38 @@ units, and why this project had to find `:8001` by hand.
 |---|---|---|
 | Microphone | ✅ present, all units — **PCM A-law, 8 kHz, mono, 64 kbit/s**, 40 ms ptime, always on | **[M]** |
 | Speaker hardware | ✅ **present in every unit** (physical inspection), and the firmware runs a **`tSpeaker`** thread | **[M]** |
-| Audio **out** / two-way talk | ✅ **WORKS — vendor channel only. [M]** `818 startSpeaking` + raw G.711A on **channel 5**, 8 kHz mono, 40 ms frames, each with a 16-byte `SFrameInfo` header. JP heard tones **and an unprompted spoken phrase** out of the camera. ❌ Not reachable over ONVIF/RTSP: ten audio-output operations decline, SDP is `recvonly`, and the backchannel `Require` header is **answered `200` and silently ignored** where RFC 2326 mandates `551` | **[M]** |
+| Audio **out** / two-way talk | ⚠️ **UNPROVEN — two claimed confirmations withdrawn, see below.** `818 startSpeaking` is **accepted** by the firmware (status `0`, where refusals return `3`) **[M]**, and G.711A frames were transmitted on channel 5 — but no sound has been attributed to them. ❌ Not reachable over ONVIF/RTSP: ten audio-output operations decline, SDP is `recvonly`, and the backchannel `Require` header is **answered `200` and silently ignored** where RFC 2326 mandates `551` | **[M]** |
 | Advertised `AudioOutputs` | **`1`** — advertised and unreachable; joins the list of fields that are simply wrong | **[M]** |
 | Audio codec over ONVIF | ❌ unavailable — the audio encoder configuration is an **empty stub** (blank token, blank encoding, zero rates). The SDP is the only source | **[M]** |
 | Microphone mute | **[?]** not tested | |
 
-> #### ✅ How this one was confirmed, after a false start
+> #### ❌ How this was claimed TWICE and withdrawn twice
 >
-> **An earlier confirmation of this same capability was recorded and then retracted**, because a
-> sound was attributed to a test that had not yet run. The retraction was right: *a matching symptom
-> is not a confirmed mechanism.*
+> **Claim 1** attributed a reported sound to a test believed not to have run. Withdrawn.
 >
-> **What made the second attempt decisive was content nobody had leaked.** JP was briefed to expect
-> beeps and a tone — so "I heard the tones" would have been weak, since the answer key had already
-> been given away. He instead reported hearing **a spoken phrase containing his own name**, which
-> was never described to him and which no coincidence, and no leading question, can manufacture.
+> **Claim 2** looked airtight: JP reported **a spoken phrase containing his own name**, which had
+> never been described to him — apparently the ideal unleakable evidence. **It was withdrawn too,
+> because the transmitter had sent no speech.** Only **three 1 kHz beeps and one 440 Hz tone** ever
+> went to the camera. JP reported *three* sounds — music, tones, and speech — and **we emitted one**.
 >
-> 🔑 **When a human is the instrument, the evidence lives in what they say that you did not tell
-> them.** Brief them on *when* to listen, not on *what* they will hear — and if you have already
-> leaked the expected result, say so and weight their answer accordingly.
+> 🔴 **So an unattributed audio source was active on the bench**, and once that is true, the *tones*
+> cannot be attributed either — the same unknown source explains all three.
+>
+> **The protocol worked; the operator did not.** The rule "have them report the pattern, not yes/no"
+> exists to make false attribution *detectable*, and it fired: JP volunteered the word **"music"**
+> before any briefing, and nobody hearing three beeps and a tone calls that music. The mismatch was
+> visible in his own words. **A yes/no question would have returned "yes" and it would have been
+> banked.**
+>
+> 🔑 **Unleaked content is necessary but not sufficient.** Evidence has to be tied to the
+> *transmitter* as well as the receiver: what was sent, and when. The fix is a **time anchor** — the
+> camera's monotonic uptime counter places transmission to the second, so the next run asks JP to
+> say *"now"* on hearing it, turning "I heard beeps" into "I heard beeps inside the 40-second window
+> in which beeps were transmitted."
+>
+> **Two false confirmations of the same capability inside one hour, by the person enforcing the
+> rule on everyone else.** Nobody is careful enough to catch this reliably. The guard has to be
+> procedural.
 
 ### Pan / tilt
 
