@@ -734,7 +734,8 @@ ffprobe -rtsp_transport tcp rtsp://192.168.1.21:554/0/av1    # sub    640x360
 
 | | |
 |---|---|
-| [docs/security.md](docs/security.md) | 🔴 **Read first** — unauthenticated credential disclosure |
+| [docs/security.md](docs/security.md) | 🔴 **Read first** — unauthenticated credential disclosure, and the `:6670` debug console |
+| [docs/driving-the-camera.md](docs/driving-the-camera.md) | 🔑 **How to actually drive one** — the PPCS session, and the three capabilities ONVIF cannot reach |
 | [docs/onvif.md](docs/onvif.md) | ONVIF support matrix, and everything it misreports |
 | [docs/vendor-api.md](docs/vendor-api.md) | `:8001`, the port map, and why nmap lies here |
 | [docs/ptz.md](docs/ptz.md) | PTZ — and why testing it permanently changes the aim |
