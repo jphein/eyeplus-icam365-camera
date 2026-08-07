@@ -169,7 +169,58 @@ in-file, so the risk is low — but **one reboot would settle it.**
 that has already lost its config** — recovering an orphaned unit at boot, with no ladder and no
 AP-mode re-provisioning.
 
+## 🔴🔴 READ FIRST — AP mode is a NORMAL 3½-minute transient on every healthy boot
+
+**A perfectly healthy camera runs full AP mode for the first ~3½ minutes of every boot, with its
+WiFi configuration entirely intact, and joins the real network by itself.** Measured on `.23`,
+2026-08-07, by a watcher polling `wpa_state` every 5 s and dumping forensics on failure:
+
+```
+[4.52s]    boot — present=6/6 config files, all byte-correct
+[9.95s]    assoc: start -> NONE
+[25.75s]   🔴 hostapd appeared     (files=6/6, assoc=NONE)
+[210.02s]  assoc: NONE -> COMPLETED, hostapd gone — joined the network unaided
+```
+
+The forensic dump at 25.8 s leaves no room for it being a scan artefact:
+
+```
+wpa_cli   -> Failed to connect to wpa_supplicant (no control socket — no supplicant running)
+wlan0     -> inet addr:192.168.200.1        <- the setup-AP address
+route     -> 192.168.200.0/24 dev wlan0
+processes -> hostapd -B /tmp/hostapd.conf   +  udhcpd -S /tmp/udhcpd.conf
+```
+
+**Mechanism, so this is not merely an empirical rule:** `p2pcam` does not write
+`/home/wpa_supplicant.conf` until **~boot+60 s** and only then launches `wpa_supplicant`. Before
+that there is no supplicant on the box at all, so the firmware brings up hostapd meanwhile. **The
+camera cannot be on the network earlier, on any boot, ever.**
+
+> ### 🔴 What this does to every observation on this page
+>
+> **A healthy camera and the failure described below are INDISTINGUISHABLE for ~3½ minutes.**
+> Bracketing measurements: association at **boot+93 s** (AP-side log) and **boot+210 s** (above).
+> **Judge nothing before 5 minutes.**
+>
+> ⚠️ **And the error is self-reinforcing.** Associating with the setup AP to re-provision
+> **triggers a genuine reboot**, so the intervention *appears* to have fixed it. Repeat that a few
+> times and *"provisioning does not survive a power cycle"* becomes settled fact **without one
+> clean observation ever having been made.**
+>
+> ✅ **RETRACT TO UNPROVEN, NOT TO FALSE.** The wipe is real — it is in the code and was caught in
+> the flash journal (below). What is now ambiguous is whether these *sightings* were of it. The
+> section below records a re-provision that "worked", which is exactly what this transient
+> produces **whether or not anything was ever lost**.
+>
+> 🔑 **The decisive test is free and needs no instrumentation: power-cycle a unit and do not look
+> at it for five full minutes.** Still in AP mode at 5 minutes → a real failure. Inside 5 minutes
+> → noise.
+
 ## 🔴 Provisioning does not survive a power cycle
+
+⚠️ **Read the transient warning above before trusting anything in this section.** The observations
+below were all taken before that transient was known, and none of them records how long after
+power-on the camera was judged.
 
 **This is the blocker for any outdoor deployment. It is confirmed, and its cause is still open.**
 
