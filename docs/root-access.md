@@ -34,9 +34,35 @@ Power the camera on. The firmware runs it **as `uid=0(root)`** during boot.
 invoked, so a single power cycle identifies the mechanism rather than requiring ten. Only
 `debug_cmd.sh` fired on this firmware.
 
-**⚠️ Not all cameras are this family.** Verified on an EYEPLUS unit (`57.0.2.0`). A sibling on
-different firmware (`cloudCam`, `47.0.2.0`) is a separate question — a negative there would mean
-*"that family has no hook"*, not *"the technique failed"*.
+### 🔑 It is not one vendor's quirk — the hook fires across firmware families
+
+Run on a **second, unrelated** camera: same card, same hook, same result. **[M]**
+
+| | `icam365-wall` (EYEPLUS) | `cloudcam-01` (a different product) |
+|---|---|---|
+| ONVIF identity | `EYEPLUS` / `EYEPLUS_DEV` / fw `57.0.2.0` | `ONVIF` / `cloudCam` / fw `47.0.2.0` |
+| **Hook that fired** | **`/mnt/debug_cmd.sh`** | **`/mnt/debug_cmd.sh`** |
+| Kernel | **Linux 3.18.31**, built 2024-02-28 | **Linux 4.9.37**, built 2023-11-14 |
+| CPU | ARMv7 Cortex-A7 (`0xc07`) | same |
+| Flash | 6 partitions, ~8 MB NOR | **5 partitions**, ~8 MB NOR |
+| Partition names | `boot bootenv linux rootfs home bak` | `uboot bootargs kernel rootfs home` |
+| telnetd started | ✅ `:2323` | ✅ `:2323` |
+| `whoami` | **`uid=0(root)`** | **[?] empty — see below** |
+
+**Different kernels, different build hosts, different partition tables — the same boot hook.**
+**[I]** that makes it an **ODM-level convention across this white-label stack**, not a single
+vendor's mistake, so it is reasonable to *expect* on units not yet bought — and cheap to test,
+since one card and one power cycle settles it.
+
+> ⚠️ **Privilege on `cloudcam-01` is NOT measured.** Its `whoami` line came back **empty** where
+> the other unit printed `uid=0(root)`. The script plainly ran, wrote to the card, and read
+> root-owned paths — **[I]** a missing `id` applet in a thinner BusyBox is the likely explanation.
+> **Do not carry "root" across from the other row**; a table like this invites exactly that.
+
+✅ **A side finding the ONVIF surface flatly denies:** `cloudcam-01` **recorded video to the card**
+(`2024-10-03/09/…M.mp4`, stamped with its own stale clock). Every ONVIF storage and recording
+operation on these cameras returns `ActionNotSupported`. **The capability is there; the protocol
+denies it.** Same shape as everything else in this repo.
 
 ## Getting an interactive shell
 
