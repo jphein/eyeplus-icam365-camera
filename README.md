@@ -583,14 +583,47 @@ method in [docs/root-access.md](docs/root-access.md).
 
 | | |
 |---|---|
-| **SoC** | 🔑 **`Augentix HC1703_1723_1753_1783s family`** — measured, and **not** any of the Goke / HiSilicon / Ingenic candidates the external research pointed at |
-| Kernel | **Linux 3.18.31** (ARMv7 Cortex-A7, `CPU part 0xc07`, NEON + VFPv4) |
-| Userland | **BusyBox v1.33.0** — no `strings`, `od`, `hexdump`, `base64` or `nc` |
+| **SoC** | 🔑 **Augentix HC1703L** — family `hc1703_1723_1753_1783s`. **Not** any of the Goke / HiSilicon / SigmaStar / Ingenic candidates the external research pointed at |
+| **Board** | **`HC1703L-TB008-NOR-8MB`** — from the device tree `model` |
+| **CPU** | **1 core**, ARM **Cortex-A7** (ARMv7l, `0xc07` rev 5). BogoMIPS **20160** |
+| CPU features | `neon vfpv3 vfpv4 vfpd32 idiva idivt lpae thumb edsp evtstrm` |
+| Clock speed | **[?]** — no `cpufreq` sysfs, nothing in the boot log |
+| **RAM** | **61,968 kB total** (~60.5 MiB usable of a 64 MB part). ~1.6 MB free at rest |
+| **Flash** | **8 MB NOR**, 64 KB erase blocks, 6 MTD partitions |
+| Removable storage | **microSD** — `mmcblk0`, and the camera records video to it |
+| Kernel | **Linux 3.18.31** (built 2024-02-28) |
+| Userland | **BusyBox v1.33.0** |
+| MAC address | burned into **eFuse** (`efuse_macaddr` at boot) — so the *real* MAC is per-unit hardware |
 | init | BusyBox init → `/etc/inittab` → `/etc/init.d/rcS` |
 | Root filesystem | **squashfs, read-only, 1.3 MB, 100 % full** |
 | Flash | **~8 MB NOR**, 64 KB erase blocks, 6 MTD partitions |
 | Serial console | present in `inittab` but **commented out** (`ttyAS0`) |
 | A sibling model | **Linux 4.9.37**, 5 partitions — [same boot hook](docs/root-access.md) |
+
+#### On-chip hardware blocks — what the silicon actually provides
+
+Enumerated from `/dev` on a live shell. **[M]** These are the capabilities the SoC exposes; how
+much of each reaches the network is a separate question, and mostly the answer is "none".
+
+| device | block | reachable over the network? |
+|---|---|---|
+| `isp`, `is`, `senif` | image signal processor + sensor interface | ❌ no imaging control exists over ONVIF |
+| `enc` | **video encoder** (H.265) | ⚠️ read-only — `SetVideoEncoderConfiguration` does not exist |
+| `osd` | **on-screen display** | ❌ — this is what burns the `1970` timestamp into every frame |
+| `ptz` | **PTZ controller** | ✅ partially, via `ContinuousMove`; no position feedback |
+| `gio` | **GPIO** | ❌ — the likely route to IR-cut and the illuminators |
+| `i2c-0`, `i2c-1` | two I²C buses | ❌ — sensor and peripheral control |
+| `snd` | **audio** in *and* out | ⚠️ mic only over RTSP; speaker needs the vendor channel |
+| `iio:device0` | an IIO sensor | **[?]** — **[I]** plausibly the ambient-light sensor behind the day/night interlock |
+| `otp_agtx` | **one-time-programmable fuses** | ❌ — where the eFuse MAC lives |
+| `watchdog`, `watchdog0` | hardware watchdog | ❌ — matches the `twd` thread, and the crash-and-recover behaviour observed |
+| `rc` | remote-control / IR receiver | **[?]** unexamined |
+| `mmcblk0` | SD card | ❌ all ONVIF storage operations return unsupported |
+| `ttyAS0` | **serial console** | present, but its getty is commented out in `inittab` |
+
+> 🔑 **Read that table as the thesis of this repo in one place.** Nearly every block is present in
+> silicon and absent from the network. The camera is not short of capability; its open protocols
+> are.
 
 ```
 mtd0 "boot"    256 KB      mtd3 "rootfs"  1.25 MB   -> squashfs, ro
