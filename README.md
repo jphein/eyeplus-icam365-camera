@@ -329,6 +329,179 @@ sweep ran in daylight, and firmwares commonly refuse to light an IR lamp while t
 reads "day", so daylight makes that test *harder*, not easier. The hardware confirmation makes a
 post-dusk re-test worthwhile rather than academic.
 
+## Platform matrix — three different cameras, one repo
+
+⚠️ **These are not one product.** JP's fleet spans **three platforms**, and treating them as one
+has already produced wrong conclusions here — a persistence fix that worked on two units failed
+silently on the third because it has no `/bak` partition at all.
+
+| | units | notes |
+|---|---|---|
+| **A — the volume platform** | `icam365-01` (outdoor), `icam365-02` (lab) — **the type there are 12 of** | Augentix HC1703, 6 partitions |
+| **B — the wall unit** | `icam365-wall` | same silicon as A; **[?]** whether it differs physically |
+| **C — the dual-lens bulb cam** | `cloudcam-01` | **different SoC, different kernel, no `/bak`** |
+
+## Platform matrix
+
+**Three units rooted across two different silicon vendors — and the same way in.**
+Detail in [docs/root-access.md](docs/root-access.md).
+
+### Platform
+
+| | `icam365-wall` (EYEPLUS) | `cloudcam-01` (different product) | variant 3 |
+|---|---|---|---|
+| ONVIF firmware | `57.0.2.0` **[M]** | **[?]** — not captured | *pending* |
+| **Kernel** | **3.18.31**, built `wx@wx`, Linaro GCC 4.9, **2024-02-28** **[M]** | **4.9.37**, built `root@yangwentest`, GCC 7.3.0, **2023-11-14** **[M]** | |
+| **BusyBox** | **v1.33.0** **[M]** | **v1.26.2** **[M]** | |
+| CPU | ARMv7 Cortex-A7 (`0xc07` rev 5) **[M]** | ARMv7 Cortex-A7 (`0xc07` rev 5) **[M]** | |
+| RAM visible to Linux | **60.5 MB** (`MemTotal 61968 kB`) **[M]** | **34.9 MB** (`MemTotal 35688 kB`; `mem=39M` on cmdline) **[M]** | |
+| **Flash** | ~8 MB NOR, 64 KB erase, **6 partitions** **[M]** | ~8 MB NOR, 64 KB erase, **5 partitions** **[M]** | |
+| Partition names | `boot bootenv linux rootfs home bak` **[M]** | `uboot bootargs kernel rootfs home` **[M]** | |
+| Flash controller (cmdline) | `nor_flash:` **[M]** | `sfc:` **[M]** | |
+| **UART console** | **`ttyAS0`, 115200** **[M]** | **`ttyAMA0`, 115200** **[M]** | |
+| rootfs | squashfs, **ro** **[M]** | squashfs, **ro** **[M]** | |
+| Writable partitions | `/home` + `/bak`, both **jffs2 rw** **[M]** | `/home`, **jffs2 rw** **[M]** | |
+| 🔑 **SoC** | **Augentix `HC1703_1723_1753_1783s` family** **[M]** — `/proc/cpuinfo` `Hardware` line, corroborated by `/bin/rsyscall.hc1703` | 🔴 **NOT Augentix.** `/proc/cpuinfo` says only `Generic DT based system` **[M]**; `/home/rsyscall.xm7205v500` **[M]** names it **`xm7205v500`** **[I]** — [confirm by reading CHIP_NAME](#-the-single-highest-value-next-read) | |
+| **Image sensor** | **SmartSens `SC1346`** **[M]** — the only sensor library in the firmware image | **[?]** (`/home/sensor.cfg` exists **[M]**) | **[?]** |
+| Board id (u-boot `hardware_id`) | **`TB008_NOR`** **[M]** | **[?]** | **[?]** |
+| WiFi module | **ZT9101** family **[M]** — same as the sibling Anyka camera | **[?]** | **[?]** |
+| MAC address | ✅ **stable, from the WiFi module's eFuse** — driver reads it (`efuse_macaddr`), nothing in the rootfs touches `wlan0` **[M]**. ⚠️ u-boot `ethaddr`/`wifiaddr` are unset placeholders and `S41setmac` randomises **`eth0` only** — unused here **[M]** | **[?]** | **[?]** |
+| UART console state | **login prompt live on `ttyAS0`**; u-boot **`bootdelay=0` — not interruptible** **[M]** | **[?]** | **[?]** |
+| Dual-sensor support | config-gated (`support_dual_sensor`); **absent on this unit** **[M]** | **[?]** — the unit with two lenses; read its `hwcfg.ini` | **[?]** |
+| Boot hooks called | `custom_init.sh` ✅ present · **`custom_pre_init.sh` called but ABSENT** · `/mnt/debug_cmd.sh` · `factory_tool.sh` **[M]** | **[?]** | **[?]** |
+
+### Root access and runtime behaviour
+
+| | `icam365-wall` | `cloudcam-01` | variant 3 |
+|---|---|---|---|
+| 🔓 **SD boot hook** | **`/mnt/debug_cmd.sh`** **[M]** | **`/mnt/debug_cmd.sh`** — same **[M]** | *pending* |
+| Executed as | **`uid=0(root)`** **[M]** | 🔴 **[?]** — see the note below | |
+| Card filesystem accepted | **vfat** **[M]** | **exfat** **[M]** | |
+| Card mount point | **`/tmp/mnt`** **[M]** — `/mnt` also resolves to it **[M]** | **`/mnt`** **[M]** | |
+| `telnetd` on :2323 | ✅ started **[M]** | ✅ started **[M]** | |
+| Clock at boot | **uptime counter** (`1969-12-31 17:00`, epoch −7 h) **[M]** | **uptime counter** (`1970-01-01 08:00`, epoch +8 h) **[M]** | |
+| WiFi config survives a power cut | **[?]** | **[?]** | |
+| Config store | `/home/devParam.dat` (1004 B, mode **`000`**), `extraParam.dat`, `psp.dat`, `tange.dat`, `hwcfg_bak.ini` **[M]** | `/home/devParam.dat` (52 288 B, mode `777`), **`/home/wpa_supplicant.conf` in the clear**, `psp.dat`, `tange.dat` **[M]** | |
+| 🔑 **`gio` GPIO tool** | ✅ **`/bin/gio`** **[M]** | ✅ **`/home/bin/gio`** **[M]** | ✅ `/bin/gio`, **opens `/dev/gio` successfully** **[M]** |
+| Vendor userland | `rsyscall.hc1703`, `sdc_tool`, `ptz_test`, `debugTool`, `httpclt`, `tees` **[M]** | `rsyscall.xm7205v500`, `ptz_test`, `debugTool`, `httpclt`, `tees` **[M]** | `gio`, `ptz_test`, `debugTool`, **`sdc_tool`**, `httpclt`, `tees`, stock `wpa_supplicant`/`wpa_cli`/`hostapd` **[M]** |
+| `wpa_supplicant` binary | **[?]** | ✅ `/bin/wpa_supplicant` **[M]** | |
+| `/etc/shadow` | present, **world-readable (`rwxrwxr-x`)**, holds an MD5-crypt (`$1$`) root hash — **value withheld** **[M]** | ❌ **does not exist** **[M]** | |
+
+> ### 🔑 The result that matters for the other ten cameras
+>
+> **Different SoC vendors** (Augentix vs `xm7205v500`), **different kernels** (3.18 vs 4.9),
+> different toolchains, different build hosts, different partition tables, different flash
+> controllers, different console devices, different card filesystems — **and the identical hook
+> name.** **[M]**
+>
+> `/mnt/debug_cmd.sh` is therefore a **firmware-stack convention that crosses silicon vendors** —
+> not an ODM quirk and certainly not one product's bug. Ten candidate names went onto one card in a
+> single boot; **this is the one that fired, on every unit tried.**
+>
+> ✅ **That is the strongest possible basis for expecting it on the remaining ten cameras**, whatever
+> chip they turn out to carry — and it means the card recipe is worth keeping even for units bought
+> later from a different seller.
+
+> ### 🔴 Privilege on `cloudcam-01` is NOT measured — do not carry it across
+>
+> The wall unit printed `uid=0(root) gid=0(root)`. **`cloudcam-01` printed an empty string**, and
+> that cell stays **[?]**.
+>
+> **The cause is measured, and it is benign: `cloudcam-01`'s BusyBox has no `id` applet [M]** (the
+> wall unit's does), and the probe used `id`. So the empty field is an instrument gap, not evidence
+> of low privilege.
+>
+> ⚠️ **But a benign explanation is not a measurement.** I tried to settle it from the dossier and
+> **the proxy failed** — reading `/etc/shadow` would have been decent evidence, except the wall
+> unit's shadow is **world-readable** so it proves nothing there, and **`cloudcam-01` has no
+> `/etc/shadow` at all.** No other captured artefact requires privilege to produce.
+>
+> ✅ **One command settles it on the next visit** — and note that **neither** applet is present on
+> both units, so the robust form is:
+> ```sh
+> id 2>/dev/null || whoami 2>/dev/null || echo "uid=$(cat /proc/self/status | grep ^Uid)"
+> ```
+> *(`whoami` is present on `cloudcam-01` and **absent** on the wall unit; `id` is the reverse.)*
+
+### 🔑 `rsyscall.<chip>` is a free, reusable SoC fingerprint — use it on every new unit
+
+**The naming convention is established by a measured pair.** On the wall unit `/proc/cpuinfo` reports
+`Hardware: Augentix HC1703_…` **and** the userland carries `/bin/rsyscall.hc1703` **[M]**. The binary
+is named after the chip.
+
+> 🔴 **Which matters because `/proc/cpuinfo` does not always say.** On `cloudcam-01` the `Hardware`
+> line is the useless `Generic DT based system` **[M]** — yet that unit carries
+> **`/home/rsyscall.xm7205v500`** **[M]**. **So the `rsyscall.*` filename identifies the SoC on units
+> where the obvious method fails.**
+>
+> ✅ **First command on any newly rooted unit:**
+> ```sh
+> grep Hardware /proc/cpuinfo; ls /bin /home /home/bin 2>/dev/null | grep -i rsyscall; cat /home/CHIP_NAME 2>/dev/null
+> ```
+
+**Still to confirm on `cloudcam-01`: `/home/CHIP_NAME` — 11 bytes, mode `777`, dated 2023-12-01
+[M]`.** Two independent lines point the same way: the `rsyscall` filename, and the byte count —
+`xm7205v500` is exactly 10 characters plus a newline. ⚠️ **The byte count is consistent but does not
+discriminate** (`gk7205v300` also fits 11 bytes); **the `rsyscall` name is the load-bearing
+evidence.** One `cat` settles it, and **no chip goes in the SoC row as [M] until it is read.**
+
+### ✅ `gio` is on both units — which is the feature unlock, not just a curiosity
+
+`/bin/gio` on the wall unit, `/home/bin/gio` on `cloudcam-01`. **[M]** This is the Goke-lineage GPIO
+tool the [shell research](docs/root-access.md) predicted from the prior art, and it is the documented
+mechanism for **IR-cut filter** and **IR LED** control on this firmware family.
+
+✅ **`gio` opens `/dev/gio` successfully on variant 3 (`/dev/gio open suc`) [M]** — the device node
+exists and the tool reaches it. ⚠️ **But it segfaults with no arguments *and* with `-g` [M]**, so it
+wants a specific invocation nobody has yet found.
+
+🔴 **The GPIO *numbers* transfer even less well than I first warned.** Published values (`gio -s 40`
+IR-cut, `gio -s 46` IR LEDs) are for **Goke** boards **[R]** — and **none of these units is a
+Goke.** **Enumerate before actuating**, and
+read `README.md`'s load-bearing-defect warning first: on the sibling Anyka camera, correcting *both*
+of two wrong IR-cut paths broke the filter where fixing *one* would have worked.
+
+### 🔴 Applet availability differs between units — probe, never assume
+
+**[M]** across three units, and this is a fleet-scripting hazard rather than a curiosity:
+
+| applet | wall | cloudcam | variant 3 |
+|---|---|---|---|
+| `id` | ✅ | ❌ | ✅ |
+| `whoami` | ❌ | ✅ | **[?]** |
+| `basename` | ❌ | ✅ | **[?]** |
+| `timeout` | ❌ | ❌ | **[?]** |
+| `httpd` | ❌ | ❌ | **[?]** |
+| `nc` | ❌ | **[?]** | ✅ |
+| `hexdump` / `hd` | ❌ | **[?]** | ✅ |
+| `strings` / `od` / `base64` | ❌ | **[?]** | **[?]** |
+
+> **A script that works on one camera can silently do nothing on another** — and the failure is a
+> blank field, not an error. That is exactly how `cloudcam-01`'s privilege ended up unmeasured.
+> **Chain fallbacks, and log the raw input (`$0`, `/proc/self/status`) rather than a tool's
+> interpretation of it.**
+
+### Two open questions, both now answerable only with a live shell
+
+| | |
+|---|---|
+| **`/home/devParam.dat`** — wall unit: **1004 bytes, mode `000`**, on its own jffs2 partition **[M]** | The obvious candidate for the WiFi credentials **and** the cloud binding — and therefore **the answer to the durability question that has driven this whole project.** ⚠️ Mode `000` is a deliberate lock, not an accident; read it, do not write it. Note `cloudcam-01`'s equivalent is **52 288 bytes at mode `777`** **[M]** — same name, wildly different size and protection, so **do not assume one format.** |
+| **The dual-lens question** — `cloudcam-01` has two physical lenses; ONVIF and RTSP expose one **[M]** | `/dev` cannot settle it: there are **`isp_dev` and `vpss` nodes and no `video*` nodes at all** **[M]** — this platform does not use V4L2. The answer is in the vendor daemon's configuration, alongside `/home/sensor.cfg` **[M]**. |
+
+### ⚠️ Two security facts from the dossiers
+
+Both are **[M]**, and neither reproduces a credential:
+
+* **The wall unit's `/etc/shadow` is world-readable** (`rwxrwxr-x`) and contains an MD5-crypt root
+  hash. Any process on that device can read it. ✅ **Mitigated in practice** — `/` is squashfs **ro**,
+  so the permissive *write* bits are inert, and the VLAN isolation still carries the load.
+* **`/etc/passwd` is world-writable in mode terms and owned by uid 1000, not root** — `rwxrwxr-x`
+  on the wall unit, `rwxrwxrwx` on `cloudcam-01` **[M]**. A build-host artefact of a squashfs packed
+  by a non-root user. Also inert on a read-only rootfs, **but it would become live the moment any of
+  it were moved onto the writable `/home` partition.**
+
+---
+
 ## Specifications
 
 Measured on the units in hand across 2026-08-05/06. Every row is **[M] measured** or
