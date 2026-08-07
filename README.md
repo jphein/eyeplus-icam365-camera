@@ -345,9 +345,12 @@ invites the reader to fill gaps by pattern, so a gap must look like one.
 | **ONVIF firmware** | **`57.0.8.0`** | `57.0.2.0` | `57.0.2.0` | **`47.0.2.0`** |
 | Manufacturer / model | `EYEPLUS` / `EYEPLUS_DEV` | same | same | **`ONVIF` / `cloudCam`** |
 | **SoC** | Augentix `HC1703` | Augentix `HC1703` | Augentix `HC1703` | **[I] `xm7205v500`** — *not* Augentix |
-| **CPU clock** | **1008 MHz** | **1008 MHz** | **1008 MHz** | **`[?]`** — see note |
+| **CPU clock** | **1008 MHz** | **1008 MHz** | **1008 MHz** | **900 MHz** *(vendor-reported)* |
 | `Hardware:` string | `Augentix HC1703…` | same | same | 🔴 **`Generic DT based system`** |
-| BogoMIPS | 20160.00 | 20160.00 | 20160.00 | **100.00** |
+| Clock source of truth | device tree | device tree | device tree | 🔴 **`/proc/cpuinfo` — DT is a DEMO stub** |
+| SoC vendor | Augentix | Augentix | Augentix | **xmedia (Xiongmai)** |
+| Real-time clock | **absent entirely** | absent | absent | 🔴 **present but fails** (`xmedia_rtc`) |
+| BogoMIPS *(not a clock)* | 20160.00 | 20160.00 | 20160.00 | **100.00** = 2× its 50 MHz timer |
 | Kernel | Linux **3.18.31** | **3.18.31** | **3.18.31** | **4.9.37** |
 | BusyBox | v1.33.0 | v1.33.0 | v1.33.0 | **v1.26.2** |
 | RAM | 60.5 MB | 60.5 MB | 60.5 MB | **34.9 MB** |
@@ -391,7 +394,7 @@ invites the reader to fill gaps by pattern, so a gap must look like one.
 > ⚠️ The checkpoint also writes NOR flash (`mtd4`) **every 600 s forever** — ~52k writes/year that
 > nobody chose, purely to fake an RTC.
 
-> ### How to read the CPU clock — and why one column is `[?]`
+> ### How to read the CPU clock — and why each platform needs a different source
 >
 > There is **no `cpufreq` sysfs on any of these units**, so the usual `scaling_cur_freq` route
 > returns nothing. The clock lives in the **device tree** as a 4-byte big-endian cell:
@@ -408,11 +411,63 @@ invites the reader to fill gaps by pattern, so a gap must look like one.
 > derived from the ARM architected timer, not the CPU. Treating it as a frequency gives an answer
 > that is wrong by a factor of twenty and looks authoritative.
 >
-> 🔴 **`cloudcam-01` is `[?]`, not zero.** The same read returned **28 Hz**, which is not a
-> plausible clock — a parse artefact, recorded as unknown rather than published as a number. Its
-> `Hardware:` line is the useless `Generic DT based system` and its BogoMIPS is **100.00** against
-> the others' 20160, so it is a different SoC by two independent signals. **The 1008 MHz figure
-> must not be carried across to it.**
+> ### 🔑 `cloudcam-01` is **900 MHz** — and its device tree is a lie
+>
+> **The same device-tree read returns `28`.** ✅ **RETRACTED: that is not a parse artefact.** It
+> was first written up as one; `base64` transfer of the raw bytes returns `AAAAHA==` = `00 00 00
+> 1C`, so **the read was accurate and the *data* is garbage.** The reason is one line away:
+>
+> ```
+> /proc/device-tree/model  ->  xmedia XM72050200 DEMO Board
+> ```
+>
+> **The vendor shipped an unmodified demo-board device tree.** Anyone trusting `clock-frequency`
+> here gets `28 Hz` and no indication anything is wrong. **On this platform the DT is not a
+> source.**
+>
+> The real figure is in **vendor-appended lines at the bottom of `/proc/cpuinfo`** — not standard
+> kernel fields, a Xiongmai patch:
+>
+> ```
+> chipId:XM72010300
+> freq:900M
+> ```
+>
+> **900 MHz [M-as-reported]** — this is the device's own claim from a kernel that can read the PLL,
+> and it is the best source available. ⚠️ **It is not independently confirmed.** A shell-loop
+> benchmark against the Augentix units was **discarded as confounded** — it measured `1.95×` where
+> the clocks predict `1.12×`, but the two run **different BusyBox builds and toolchains**, so it
+> was measuring the shell, not the silicon. **Recorded as a failed measurement rather than a
+> contradiction.**
+>
+> 🔑 **`BogoMIPS 100.00` is now explained, and it is not a clock:**
+>
+> ```
+> arm_arch_timer: Architected cp15 timer(s) running at 50.00MHz (phys)
+> Calibrating delay loop (skipped), value calculated using timer frequency.. 100.00 BogoMIPS
+> ```
+>
+> **BogoMIPS here is exactly 2× the 50 MHz architected timer** and has no relationship to the core
+> clock at all. The delay loop was *skipped*, not measured.
+>
+> ⚠️ **Three different chip identifiers, from three sources, and they do not agree:**
+>
+> | source | value |
+> |---|---|
+> | `/proc/cpuinfo` `chipId` | **`XM72010300`** |
+> | device-tree `model` / `compatible` | `XM72050200` / `xmedia,xm72050200` |
+> | on-disk binary name | `rsyscall.xm7205v500` |
+>
+> Two of three agree on **72 05**; `chipId` says **72 01**. **The vendor is "xmedia" (Xiongmai).**
+> Do not quote a single part number as settled.
+>
+> 🔑 **This platform HAS an RTC and it still fails** — `xmedia_rtc 120e0000.rtc: hctosys: unable to
+> read the hardware clock`. That is a **different** defect from the Augentix units, which have no
+> RTC class whatsoever. Same broken outcome, two different causes. **Do not merge these rows.**
+>
+> **`devfreq` registration fails repeatedly** at boot (`failed to add devfreq device`, ×7,
+> including VENC and VPSS), so **the clock is fixed** — the scaling machinery is compiled in and
+> does not come up. Kernel cmdline also confirms `mem=39M` and the 5-partition `sfc:` layout.
 
 > ### 🔴 The firmware split is a confound, not an explanation
 >
