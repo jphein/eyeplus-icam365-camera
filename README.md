@@ -1120,3 +1120,7 @@ Addresses, SSIDs, MACs and device UIDs throughout this repo are **generic stand-
 structure and the findings are real; only the identifiers are substituted, so the repo can be
 published without further work. **Credentials are never recorded here at all**, including the
 one the cameras leak.
+
+## License
+
+AGPL-3.0-or-later © 2026 Jeffrey Pine Hein. See [LICENSE](LICENSE).
